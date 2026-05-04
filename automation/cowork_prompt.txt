@@ -1,0 +1,158 @@
+Procesa las facturas de proveedores pendientes en Google Drive. Soporta PDFs, imagenes (JPG/JPEG/PNG) y fotos de iPhone (HEIC/HEIF). Lee el IVA tal como aparece en el documento. Tras encolar los JSONs, espera 10 min, verifica el estado de los apuntes en Odoo y sube un CSV de reporte a la subcarpeta "csv odoo".
+
+CONTEXTO
+- Empresa: CARARJFAM2019,SL (CIF B93653392), Espana.
+- Carpeta Pendientes (id 1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ): archivos a procesar.
+- Subcarpeta Cola_VPS (id 1dIQ0IKGGk-3oJc9129pmA5IDepVzp71-): donde dejas un JSON por cada archivo extraido. El VPS lee de aqui cada 5 min.
+- Subcarpeta "Contabilizado odoo" (id 1JwE4yblvap2qx2JtTJW6YRgpyXEsGkMu): donde el VPS mueve un archivo cuando el apunte se ha contabilizado.
+- Subcarpeta "revision" (id 11VDbGsheAp4np155afA2TVQYaSwuD380): donde el VPS mueve los archivos que requieren revision humana.
+- Subcarpeta "csv odoo" (id 1lwnQyUco-UMXj35z1Gq8p1z3j2bOAdCh): donde dejaras un CSV con el reporte diario.
+
+PRINCIPIO DE DECISION
+Las facturas siempre quedan en BORRADOR en Odoo. El humano valida antes de publicar. Por eso TU TRABAJO es:
+
+1. Tomar siempre la decision MAS PROBABLE leyendo el documento — no abandones la extraccion porque algo no este 100% claro.
+2. Cuando tengas cualquier duda (IVA no impreso, OCR ambiguo, importe que no cuadra del todo, NIF parcialmente legible), PROCESA igualmente con tu mejor estimacion y ANOTA la duda en el campo `extraction_notes` del JSON. Esa nota se muestra al humano en Odoo.
+3. Solo abandona (no subas JSON) si el documento NO es una factura, o esta tan ilegible que no puedes ni siquiera estimar el proveedor o el total.
+4. La confianza ya no decide si va a Revision; solo es informativa. El VPS acepta cualquier confianza siempre que: subtotal+iva ≈ total y formato VAT valido. Si esos chequeos fallan, lo manda a Revision el VPS automaticamente.
+
+REGLA DE IVA EN ESPANA
+4 tipos validos: 21, 10, 4, 0. Lee el IVA tal como aparece en el documento. Esta empresa recibe facturas legitimas a 10% (gasoleo B agricola/industrial, hosteleria, transporte de viajeros, productos sanitarios concretos), 4% (libros, alimentos basicos, medicamentos) y 0% (operaciones exentas). Si el documento NO indica el tipo y hay que deducirlo: asume 21% Y describe en `extraction_notes` por que (ej. "IVA no impreso, asumido 21% por ser servicio profesional").
+
+================================================
+FASE A - PROCESAR Y ENCOLAR
+================================================
+
+1) Lista archivos procesables en Pendientes. El wrapper de Drive NO soporta `OR` sobre mimeType, ni `parents`/`trashed`. Usa `parentId` y lanza UNA `search_files` por tipo, dedupe por id. PARA CADA RESULTADO, GUARDA TAMBIEN `mimeType` y `viewUrl`:
+   - parentId='1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ' and mimeType='application/pdf'
+   - parentId='1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ' and mimeType='image/jpeg'
+   - parentId='1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ' and mimeType='image/jpg'
+   - parentId='1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ' and mimeType='image/png'
+   - parentId='1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ' and mimeType='image/heif'
+   - parentId='1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ' and mimeType='image/heic'
+
+2) Lista los JSON ya en cola: search_files con `parentId='1dIQ0IKGGk-3oJc9129pmA5IDepVzp71-'`.
+
+3) Construye el conjunto de drive_file_id ya encolados extrayendo {ID} de cada nombre {ID}.json.
+
+4) Para cada archivo de Pendientes cuyo id NO este en la cola:
+
+   a) Version legible:
+      - PDF/JPG/JPEG/PNG: `read_file_content(fileId)`.
+      - HEIC/HEIF: `read_file_content` NO lo soporta. Usa download_file_content + path del .txt en /sessions/<sandbox>/mnt/.claude/projects/.../tool-results/, decodifica `.content[0].embeddedResource.contents.blob` (base64), `pip install pillow-heif --break-system-packages --quiet` la 1a vez, conviertelo a JPG <=2200px con pillow_heif, y leelo con `Read` (multimodal). Si la conversion falla, registra error y NO subas JSON.
+
+   b) Extrae:
+      - supplier_name, supplier_vat (CIF ^[A-HJ-NP-SUVW][0-9]{8}$ o NIF ^[0-9]{8}[A-Z]$, sin "ES").
+      - invoice_ref, invoice_date (YYYY-MM-DD), due_date (omite si no aparece).
+      - subtotal, tax_total, total tal como aparecen.
+      - tax_rate por linea: el IMPRESO en el documento (21|10|4|0).
+      - lines: una entrada por cada tax_rate distinto.
+
+   c) extraction_confidence (informativo, no penalices): 1.0 PDF nativo perfecto, 0.7-0.9 dudas menores, 0.5-0.7 ambiguo, <0.5 muy dudoso.
+
+   d) **extraction_notes** (NUEVO — campo clave): texto libre con TODA observacion relevante para el humano que revise. Ejemplos:
+      - "IVA 21% no impreso, asumido (servicio profesional)."
+      - "Numero de factura ilegible en parte: podria ser 226/26 o 228/26."
+      - "Subtotal + IVA = 50.00 pero el total impreso dice 50.01: he tomado 50.00 (suma exacta de las lineas)."
+      - "Dos lineas con tipos de IVA diferentes (21% y 10%)."
+      - "Es una factura simplificada (ticket); proveedor extraido del nombre comercial."
+      Si NO tienes ninguna duda relevante, omite el campo o ponlo vacio.
+
+   e) Validacion en cliente (chequeos basicos antes de subir):
+      - subtotal+tax_total ≈ total con margen 0.05€. Si falla, NO subas; registra error.
+      - sum(line.amount) ≈ subtotal con margen 0.05€. Si falla, NO subas.
+      - VAT con formato valido. Si falla, NO subas.
+
+   f) JSON exacto:
+      {
+        "drive_file_id":"...",
+        "source_drive_url":"https://drive.google.com/file/d/{drive_file_id}/view",
+        "source_mime_type":"application/pdf | image/jpeg | image/png | image/heif",
+        "supplier_name":"...",
+        "supplier_vat":"...",
+        "invoice_ref":"...",
+        "invoice_date":"YYYY-MM-DD",
+        "due_date":"YYYY-MM-DD",
+        "subtotal":100.00,
+        "tax_total":21.00,
+        "total":121.00,
+        "lines":[{"description":"...","amount":100.00,"tax_rate":21}],
+        "extraction_confidence":0.90,
+        "extraction_notes":"Texto opcional con dudas u observaciones para el revisor humano."
+      }
+
+      `source_mime_type` es el mimeType ORIGINAL en Drive (NO el JPG resultante de convertir un HEIC).
+
+   g) Subir a cola_vps con create_file: title="{drive_file_id}.json", mimeType="application/json", parentId="1dIQ0IKGGk-3oJc9129pmA5IDepVzp71-", content=base64(json_str), disableConversionToGoogleType=true.
+
+   GUARDA EN MEMORIA dos listas:
+   - `procesados`: { drive_file_id, source_title, source_drive_url, source_mime_type, supplier_name, supplier_vat, invoice_ref, invoice_date, subtotal, tax_total, total, tax_rate, extraction_confidence, extraction_notes }
+   - `errores`: { source_title, drive_file_id, motivo }   ← SOLO cuando NO has podido extraer ni siquiera proveedor o total, o falla la validacion del paso e.
+
+================================================
+FASE B - ESPERAR 10 MINUTOS
+================================================
+
+Si `procesados` esta vacio, SALTA esta fase y la C, y ve directo a Fase D para subir un CSV solo con cabecera + comentario.
+
+Si hay procesados: el bash sandbox topa en 45s/llamada. Encadena ~15 llamadas separadas con `sleep 40` cada una para sumar ~10 min. NO uses sleep 600 (sera matado por timeout). NO ejecutes los sleeps en paralelo, deben ser secuenciales.
+
+================================================
+FASE C - VERIFICAR APUNTES
+================================================
+
+Por cada `drive_file_id` de `procesados`, llama `get_file_metadata(drive_file_id)` y mira `parentId`:
+- '1JwE4yblvap2qx2JtTJW6YRgpyXEsGkMu' (Contabilizado odoo) -> estado "Contabilizado".
+- '11VDbGsheAp4np155afA2TVQYaSwuD380' (revision) -> estado "En revision".
+- '1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ' (Pendientes) -> estado "Sin procesar (VPS no respondio)".
+- otro parentId -> resuelve titulo de la carpeta con get_file_metadata(parentId) y usa "Movido a {titulo}".
+
+Anade el campo `estado` a cada item.
+
+================================================
+FASE D - SUBIR REPORTE CSV A "csv odoo"
+================================================
+
+Construye el CSV con separador ';' y CRLF, codificado en UTF-8. Cabecera EXACTA:
+
+   fecha_proceso;drive_file_id;source_title;proveedor;cif_nif;num_factura;fecha_factura;subtotal;iva;total;tipo_iva;confidence;notas;estado
+
+Una fila por elemento de `procesados`. Escapa comillas en `notas` y `proveedor` segun CSV estandar (envolver en comillas dobles si contiene ; o \n).
+
+Si hay errores (paso A.e fallo), anade al final del CSV una fila vacia y luego una linea por error con prefijo "# error;".
+
+`fecha_proceso` = momento en que terminaste la fase A (formato YYYY-MM-DD HH:MM, hora local).
+
+Sube el CSV con create_file:
+- title = "reporte_facturas_{YYYY-MM-DD_HH-MM}.csv"
+- mimeType = "text/csv"
+- parentId = "1lwnQyUco-UMXj35z1Gq8p1z3j2bOAdCh"
+- content = base64 del CSV
+- disableConversionToGoogleType = true
+
+Si no hay procesados, igualmente sube un CSV con solo la cabecera y una linea de comentario "# {YYYY-MM-DD HH:MM} sin facturas nuevas" para que siempre quede evidencia diaria.
+
+================================================
+FASE E - RESUMEN EN CHAT
+================================================
+
+Devuelve:
+- Archivos vistos en Pendientes: N (PDFs / JPG-PNG / HEIC).
+- Saltados (ya en cola): X.
+- JSONs creados en Cola_VPS: Y.
+- Apuntes contabilizados: A.
+- En revision (rechazados por VPS): R.
+- Sin procesar tras 10 min: P.
+- Errores de extraccion: Z (con motivo por archivo).
+- ID y URL del CSV subido a csv_odoo.
+
+REGLAS DURAS
+- Toma siempre la decision MAS PROBABLE; las facturas en BORRADOR son la red de seguridad.
+- Si tienes cualquier duda, RELLENA `extraction_notes` con la duda.
+- NUNCA inventes datos sin avisar — si decides un valor incierto, OBLIGATORIO documentarlo en notes.
+- Lee el IVA tal cual aparece. Solo asume 21% si no aparece y deja constancia en notes.
+- NUNCA muevas/borres archivos en Drive.
+- NUNCA crees dos JSONs para el mismo drive_file_id.
+- El nombre del JSON DEBE ser exactamente "{drive_file_id}.json".
+- `source_mime_type` es el mimeType ORIGINAL en Drive, no el de la imagen tras convertir HEIC.
+- Si no hay archivos nuevos: ve directo a Fase D (CSV con solo cabecera + comentario), NO esperes 10 min.

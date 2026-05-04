@@ -1,0 +1,11 @@
+nombre;patron;tipo;cuenta;partner;tax;confianza;notas
+Nominas mensuales;PAG NOMINAS;bank;640000;;;0.95;Salarios pagados a empleados
+Cotizacion Seguridad Social;TGSS.COTIZACION;bank;642000;Tesoreria General de la Seguridad Social;;0.95;Cuotas SS
+Comunidad Barrio La Luz;C.P.BARRIO LA LUZ;bank;622000;;;0.90;Cuota mensual comunidad propietarios
+IRPF modelo 111;I.R.P.F. MOD.111;bank;4751000;Hacienda Publica;;1.00;Retenciones IRPF trabajadores
+Telefonia Digi;DIGI SPAIN;bank;629000;DIGI Spain Telecomunicaciones;;0.90;Cuota linea telefono
+Comisiones bancarias;CUSTODIA.FONDOS;bank;626000;;;0.95;Custodia y gastos La Caixa
+Anthropic suscripcion;ANTHROPIC;bank;629000;Anthropic;;0.95;Suscripcion Claude
+Seguro auto Tuio;SEGUROS TUIO;bank;625000;Tuio Seguros;;0.95;Seguro vehiculo
+Combustible gasolinera;PETROPRIX;invoice;629000;PETROPRIX ENERGIA S.L.;;0.95;Diesel/Gasolina
+Combustible gasoleo;GASOLEO;invoice;629000;;;0.85;Combustible vehiculos

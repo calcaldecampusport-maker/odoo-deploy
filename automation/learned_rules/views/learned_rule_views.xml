@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_learned_rule_tree" model="ir.ui.view">
+        <field name="name">learned.rule.tree</field>
+        <field name="model">learned.rule</field>
+        <field name="arch" type="xml">
+            <tree default_order="rule_type, sequence">
+                <field name="sequence" widget="handle"/>
+                <field name="rule_type"/>
+                <field name="name"/>
+                <field name="pattern"/>
+                <field name="account_id"/>
+                <field name="partner_id" optional="hide"/>
+                <field name="tax_id" optional="hide"/>
+                <field name="confidence"/>
+                <field name="source"/>
+                <field name="times_applied"/>
+                <field name="last_applied" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="active" invisible="1"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_learned_rule_form" model="ir.ui.view">
+        <field name="name">learned.rule.form</field>
+        <field name="model">learned.rule</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" string="Nombre"/>
+                        <h1><field name="name" placeholder="Ej. Nominas mensuales"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="rule_type"/>
+                            <field name="pattern" placeholder="Ej. PAG NOMINAS"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="confidence"/>
+                            <field name="source"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="account_id"/>
+                            <field name="partner_id"/>
+                            <field name="tax_id"/>
+                        </group>
+                    </group>
+                    <group string="Diagnostico">
+                        <field name="times_applied"/>
+                        <field name="last_applied"/>
+                        <field name="sequence"/>
+                    </group>
+                    <group string="Notas">
+                        <field name="notes" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_learned_rule_search" model="ir.ui.view">
+        <field name="name">learned.rule.search</field>
+        <field name="model">learned.rule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="pattern"/>
+                <field name="account_id"/>
+                <filter string="Banco" name="filter_bank" domain="[('rule_type','=','bank')]"/>
+                <filter string="Factura" name="filter_invoice" domain="[('rule_type','=','invoice')]"/>
+                <separator/>
+                <filter string="Manuales (CSV)" name="filter_active" domain="[('source','=','active')]"/>
+                <filter string="Auto-aprendidas" name="filter_passive" domain="[('source','=','passive')]"/>
+                <separator/>
+                <filter string="Activas" name="filter_active_yes" domain="[('active','=',True)]"/>
+                <filter string="Inactivas" name="filter_active_no" domain="[('active','=',False)]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter string="Tipo" name="group_type" context="{'group_by':'rule_type'}"/>
+                    <filter string="Cuenta destino" name="group_account" context="{'group_by':'account_id'}"/>
+                    <filter string="Origen" name="group_source" context="{'group_by':'source'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_learned_rule" model="ir.actions.act_window">
+        <field name="name">Reglas aprendidas</field>
+        <field name="res_model">learned.rule</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_filter_active_yes': 1}</field>
+    </record>
+
+    <menuitem id="menu_learned_rule_root"
+              name="Reglas aprendidas"
+              parent="account.menu_finance_configuration"
+              action="action_learned_rule"
+              sequence="100"/>
+</odoo>
