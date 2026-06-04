@@ -298,6 +298,7 @@ def main():
     p.add_argument('--save-rule', action='store_true')
     p.add_argument('--delete-rule', action='store_true')
     p.add_argument('--company-id', type=int, default=4)
+    p.add_argument('--db')
     p.add_argument('--line-id', type=int)
     p.add_argument('--action', choices=['account', 'move', 'aml'])
     p.add_argument('--account')
@@ -315,7 +316,7 @@ def main():
     args = p.parse_args()
 
     odoo.tools.config.parse_config(['-c', ODOO_CONF])
-    reg = odoo.registry(DB_NAME)
+    reg = odoo.registry(args.db or DB_NAME)
     with reg.cursor() as cr:
         env = Environment(cr, odoo.SUPERUSER_ID, {'tz': 'Europe/Madrid'})
         if args.propose:
