@@ -12,6 +12,22 @@ For each company:
 
 Designed to run from cron as user `odoo` (same user that ran `claude /login`).
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import argparse
 import base64
 import io
@@ -23,7 +39,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, "/opt/automation")
+sys.path.insert(0, _HERE)  # FIX: era _austral, leía companies equivocado
 import drive_ops  # noqa: E402
 import companies as comp  # noqa: E402
 
@@ -88,7 +104,7 @@ Common fields (always include):
 - extraction_notes (string): any doubt, assumption, OCR ambiguity, or relevant remark for the human reviewer.
 
 Special fields by document_type (optional but useful):
-- For "nomina": REQUIRED include "extra": {{"irpf_total": <number>, "ss_empleado_total": <number>, "salario_especie_total": <number>, "liquido_total": <number>, "period": "YYYY-MM", "employees": [{{"name": "...", "nif": "...", "bruto": <number>, "irpf": <number>, "ss": <number>, "salario_especie": <number>, "liquido": <number>}}]}}. salario_especie (also called "salario en especie" or "retribucion en especie") represents non-cash compensation — for socios/administradores it usually equals their autonomo cuota that the company pays. Default to 0 if not present. The arithmetic: subtotal (= sum of brutos including salario_especie) - tax_total (= irpf_total + ss_empleado_total) = total (= liquido_total). NOTE the salario_especie does NOT enter the liquido (it is not cash), but it IS included in the bruto for tax purposes. The "lines" array must contain ONE entry per employee with description="Nomina <nombre> <NIF> bruto <bruto> liquido <liquido>", amount=bruto, tax_rate=0.
+- For "nomina": REQUIRED include "extra": {{"irpf_total": <number>, "ss_empleado_total": <number>, "aportaciones_empresa_total": <number>, "base_contingencias_comunes_total": <number>, "salario_especie_total": <number>, "liquido_total": <number>, "period": "YYYY-MM", "employees": [{{"name": "...", "nif": "...", "bruto": <number>, "irpf": <number>, "ss": <number>, "salario_especie": <number>, "liquido": <number>, "base_contingencias_comunes": <number>, "base_cc_empresa": <number>, "base_at_ep": <number>, "cuota_cc_empresa": <number>, "cuota_at_empresa": <number>, "cuota_desempleo_empresa": <number>, "cuota_fp_empresa": <number>, "cuota_fogasa_empresa": <number>, "ss_empresa_total": <number>, "tipo_contrato": "indefinido"|"temporal"}}]}}. aportaciones_empresa_total is the SUM across all payslips of the FULL company SS contributions (contingencias comunes empresa + desempleo empresa + FOGASA + formación profesional + AT/EP). Typically ~30% of bruto total. IMPORTANT: do NOT confuse with base_contingencias_comunes or base_accidente — those are BASES (calculation amounts), not contributions; never sum them. base_contingencias_comunes is per employee the base used for the CC retention (usually equals bruto but can differ slightly when there are non-cotizable concepts). salario_especie (also called "salario en especie" or "retribucion en especie") represents non-cash compensation — for socios/administradores it usually equals their autonomo cuota that the company pays. Default to 0 if not present. The arithmetic: subtotal (= sum of brutos including salario_especie) - tax_total (= irpf_total + ss_empleado_total) = total (= liquido_total). NOTE the salario_especie does NOT enter the liquido (it is not cash), but it IS included in the bruto for tax purposes. The "lines" array must contain ONE entry per employee with description="Nomina <nombre> <NIF> bruto <bruto> liquido <liquido>", amount=bruto, tax_rate=0.
 - For "irpf_payment": include "extra": {{"modelo": "111"|"115"|"130"|"190"|"216", "ejercicio": "YYYY", "periodo": "1T"|"2T"|"3T"|"4T"|"01"|...}}
 - For "ss_payment": include "extra": {{"periodo": "YYYY-MM", "ccc": "..."}}
 
@@ -230,7 +246,19 @@ def _list_pending(svc, pending_folder_id: str):
     return out
 
 
-SKIP_FILENAME_HINTS = ("dudas", "aprendizaje", "_aplicado", "_procesado")
+
+def _route_to_rejected(svc, fid, cfg):
+    """Mueve un archivo a rechazadas_folder si está configurado; si no, fallback a revision_folder."""
+    target = cfg.get("rechazadas_folder") or cfg.get("revision_folder")
+    drive_ops.move_file(fid, target, svc=svc)
+
+SKIP_FILENAME_HINTS = (
+    "dudas", "aprendizaje", "_aplicado", "_procesado",
+    # Informes / xlsx generados por scripts internos (no son facturas ni extractos, "backup_", "recovery")
+    "pendientes_", "liquidaciones_", "matcheo_", "duplicados_",
+    "revision_", "152_liquidaciones", "asientos_", "resumen_",
+    "libro_mayor_", "informe_", "reporte_",
+)
 
 
 def _classify(file_meta: dict) -> str:
@@ -312,11 +340,15 @@ def process_company(svc, cfg: dict) -> dict:
 
     pending = _list_pending(svc, pending_folder)
     todo = pending  # files in Pendientes are by definition not yet processed (we move on success/failure)
+    import os as _os
+    _lim = _os.environ.get("EXTRACTOR_LIMIT")
+    if _lim:
+        todo = todo[:int(_lim)]
 
     log.info(f"[{cfg['name']}] pending={len(pending)} todo={len(todo)}")
 
     TMP_DIR.mkdir(parents=True, exist_ok=True)
-    stats = {"company": cfg["name"], "todo": len(todo), "ok": 0, "fail": 0, "errors": []}
+    stats = {"company": cfg["name"], "todo": len(todo), "ok": 0, "fail": 0, "errors": [], "duplicates": [], "created": []}
 
     for f in todo:
         fid, fname, mime = f["id"], f["name"], f["mimeType"]
@@ -339,7 +371,7 @@ def process_company(svc, cfg: dict) -> dict:
                     log.info(f"  {fname} -> SEPA payroll asiento creado")
                 else:
                     try:
-                        drive_ops.move_file(fid, cfg["revision_folder"], svc=svc)
+                        _route_to_rejected(svc, fid, cfg)
                     except Exception:
                         log.exception("  could not move SEPA file to revision")
                     stats["fail"] += 1
@@ -361,7 +393,7 @@ def process_company(svc, cfg: dict) -> dict:
                     log.info(f"  {fname} -> bank statement imported")
                 else:
                     try:
-                        drive_ops.move_file(fid, cfg["revision_folder"], svc=svc)
+                        _route_to_rejected(svc, fid, cfg)
                     except Exception:
                         log.exception("  could not move bank file to revision")
                     stats["fail"] += 1
@@ -381,7 +413,7 @@ def process_company(svc, cfg: dict) -> dict:
                 log.warning(f"  {fname} -> revision ({err})")
                 payload = {"drive_file_id": fid, "extraction_error": err}
                 try:
-                    drive_ops.move_file(fid, cfg["revision_folder"], svc=svc)
+                    _route_to_rejected(svc, fid, cfg)
                 except Exception:
                     log.exception("  could not move to revision")
                 continue
@@ -403,10 +435,17 @@ def process_company(svc, cfg: dict) -> dict:
                     log.exception("  could not move to contabilizado")
                 stats["ok"] += 1
                 marker = "duplicate" if rc == 20 else "created"
+                rec = {"file": fname, "invoice_id": invoice_id, "total": payload.get("total"),
+                       "supplier": payload.get("supplier_name"), "ref": payload.get("invoice_ref"),
+                       "invoice_date": payload.get("invoice_date")}
+                if rc == 20:
+                    stats["duplicates"].append(rec)
+                else:
+                    stats["created"].append(rec)
                 log.info(f"  {fname} -> {marker} invoice_id={invoice_id} total={payload.get('total')}")
             else:
                 try:
-                    drive_ops.move_file(fid, cfg["revision_folder"], svc=svc)
+                    _route_to_rejected(svc, fid, cfg)
                 except Exception:
                     log.exception("  could not move to revision")
                 stats["fail"] += 1
@@ -444,6 +483,15 @@ def main():
         log.info(f"  {s.get('company')}: ok={s.get('ok')} fail={s.get('fail')} todo={s.get('todo')}")
         for err in s.get("errors", []):
             log.warning(f"    error: {err['file']} ({err['reason']})")
+    try:
+        from datetime import date as _date
+        out_dir = Path("/tmp/extractor_runs")  # FIX: era _austral
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / f"{_date.today().isoformat()}.json").write_text(
+            json.dumps({"summary": overall}, ensure_ascii=False, default=str)
+        )
+    except Exception:
+        log.exception("could not persist extractor run summary")
     print(json.dumps({"summary": overall}, ensure_ascii=False))
 
 

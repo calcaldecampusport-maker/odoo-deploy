@@ -10,6 +10,22 @@ email_summary.py.
 
 Standalone CLI: print JSON of all proposals to stdout.
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import argparse
 import json
 import logging
@@ -92,6 +108,13 @@ def _score(line, move, name_match: float) -> tuple[int, list[str]]:
     return min(score, 100), reasons
 
 
+
+def _is_contactless(ref: str) -> bool:
+    """Lines starting with \"Transaccion Contactless\" must only match invoices 100% exactly.
+    Never propose partials, near-matches, rules or open AMLs for these."""
+    return (ref or "").upper().lstrip().startswith("TRANSACCION CONTACTLESS")
+
+
 OPEN_LIABILITY_CODES = ("465000", "476000", "475100", "410000", "430000")
 
 
@@ -159,8 +182,9 @@ def propose_for_company(env, company_id: int, max_lines: int = 200) -> list[dict
 
     out = []
     for line in lines:
+        contactless = _is_contactless(line.payment_ref or "")
         rule_proposal = None
-        if has_rule_model:
+        if has_rule_model and not contactless:
             rule = env["learned.rule"].find_match(line.payment_ref or "", "bank", company_id)
             if rule:
                 rule_proposal = {
@@ -177,24 +201,37 @@ def propose_for_company(env, company_id: int, max_lines: int = 200) -> list[dict
         amount_lo = line_amount - 1.0
         amount_hi = line_amount + 1.0
 
-        candidates = env["account.move"].search([
-            ("company_id", "=", company_id),
-            ("state", "=", "posted"),
-            ("move_type", "in", ["in_invoice", "out_invoice", "in_refund", "out_refund"]),
-            ("amount_total", ">=", amount_lo),
-            ("amount_total", "<=", amount_hi),
-            ("payment_state", "in", ["not_paid", "partial"]),
-        ], limit=20)
+        if contactless:
+            # User rule: contactless TPV lines only match invoices 100% exactly,
+            # not partial. Restrict the search range to ±0.005€ so partial matches
+            # never appear; user reviews the proposal and approves.
+            candidates = env["account.move"].search([
+                ("company_id", "=", company_id),
+                ("state", "=", "posted"),
+                ("move_type", "in", ["in_invoice", "in_refund"]),
+                ("amount_total", ">=", line_amount - 0.005),
+                ("amount_total", "<=", line_amount + 0.005),
+                ("payment_state", "in", ["not_paid", "partial"]),
+            ], limit=10)
+        else:
+            candidates = env["account.move"].search([
+                ("company_id", "=", company_id),
+                ("state", "=", "posted"),
+                ("move_type", "in", ["in_invoice", "out_invoice", "in_refund", "out_refund"]),
+                ("amount_total", ">=", amount_lo),
+                ("amount_total", "<=", amount_hi),
+                ("payment_state", "in", ["not_paid", "partial"]),
+            ], limit=20)
 
-        # Also search drafts (not yet posted) for visibility
-        draft_candidates = env["account.move"].search([
-            ("company_id", "=", company_id),
-            ("state", "=", "draft"),
-            ("move_type", "in", ["in_invoice", "out_invoice"]),
-            ("amount_total", ">=", amount_lo),
-            ("amount_total", "<=", amount_hi),
-        ], limit=20)
-        candidates = candidates | draft_candidates
+            # Also search drafts (not yet posted) for visibility
+            draft_candidates = env["account.move"].search([
+                ("company_id", "=", company_id),
+                ("state", "=", "draft"),
+                ("move_type", "in", ["in_invoice", "out_invoice"]),
+                ("amount_total", ">=", amount_lo),
+                ("amount_total", "<=", amount_hi),
+            ], limit=20)
+            candidates = candidates | draft_candidates
 
         scored = []
         for c in candidates:
@@ -218,8 +255,11 @@ def propose_for_company(env, company_id: int, max_lines: int = 200) -> list[dict
         scored.sort(key=lambda x: -x["score"])
 
         # Also match against open liability lines (nomina liquidos, TGSS, IRPF, proveedores)
-        open_line_matches = _find_open_aml_matches(env, company_id, line.amount, line.date)
-        open_line_matches.sort(key=lambda x: -x["score"])
+        if contactless:
+            open_line_matches = []
+        else:
+            open_line_matches = _find_open_aml_matches(env, company_id, line.amount, line.date)
+            open_line_matches.sort(key=lambda x: -x["score"])
 
         proposals = []
         if rule_proposal:
@@ -264,6 +304,8 @@ def find_near_matches_for_company(env, company_id: int, min_diff: float = 0.5, m
 
     out = []
     for bl in bank_lines:
+        if _is_contactless(bl.payment_ref or ""):
+            continue
         target = abs(bl.amount)
         if target < 1.0:
             continue

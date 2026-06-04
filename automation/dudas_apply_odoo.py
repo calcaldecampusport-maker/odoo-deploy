@@ -6,6 +6,22 @@ via ORM, writes results back as JSON.
 Usage:
   python3 dudas_apply_odoo.py --input <actions.json> --output <result.json>
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import argparse
 import json
 import logging
@@ -166,7 +182,68 @@ def _propagate_to_similar(env, source_bank_line, target_account, label: str, par
     return {"propagated": propagated, "rule_created": rule_created}
 
 
+
+
+import re as _re
+
+
+
+def _create_vat_correction(env, action: dict) -> dict:
+    """Create/update learned.rule(vat_correction) and try to fix existing partner."""
+    res = {"row_index": action.get("row_index"), "archivo": action.get("archivo")}
+    partner_name = (action.get("partner_name") or "").upper().strip()
+    vat = (action.get("vat") or "").upper().strip()
+    company_id = action.get("company_id")
+    if not (partner_name and vat):
+        res.update({"estado_actual": "ERROR_RECHAZO", "note": "partner/vat ausentes"})
+        return res
+    Rule = env["learned.rule"]
+    domain = [("rule_type", "=", "vat_correction"), ("pattern", "=", partner_name)]
+    if company_id:
+        domain.append(("company_id", "=", company_id))
+    existing = Rule.search(domain, limit=1)
+    if existing:
+        existing.write({"notes": vat, "confidence": 0.99})
+    else:
+        vals = {
+            "name": f"VAT correcto {partner_name[:30]}",
+            "pattern": partner_name,
+            "rule_type": "vat_correction",
+            "notes": vat,
+            "confidence": 0.99,
+            "source": "active",
+        }
+        if company_id:
+            vals["company_id"] = company_id
+        Rule.create(vals)
+
+    # Try to update existing partner via ORM (NO raw SQL — saltaría normalize_vat
+    # de base_vat y produciría duplicados con/sin prefijo ES).
+    p = env["res.partner"].search([("name", "ilike", partner_name)], limit=1)
+    extra = ""
+    if p:
+        try:
+            # write() pasa por base_vat: normaliza prefijo ES, valida checksum
+            p.write({"vat": vat})
+            extra = f" + partner {p.name} actualizado (VAT canonico {p.vat})"
+        except Exception as e:
+            # Si base_vat rechaza (checksum mal), fallback: sin ES + write
+            try:
+                p.with_context(no_vat_validation=True).write({"vat": vat})
+                extra = f" + partner {p.name} actualizado (sin validar VAT)"
+            except Exception as e2:
+                extra = f" (no se actualizó partner: {str(e)[:60]})"
+    res.update({"estado_actual": "CIF_CORREGIDO", "note": f"learned.rule guardada {partner_name}={vat}{extra}"})
+    return res
+
+
 def execute(env, action: dict) -> dict:
+    # New: VAT correction comes from rechazo_cif processed by dudas_apply
+    if action.get("action") == "create_vat_correction":
+        return _create_vat_correction(env, action)
+    # Skip rechazo_* actions that have no id_odoo (Drive-only ops handled upstream)
+    if action.get("action", "").startswith("rechazo_") or "id_odoo" not in action:
+        return {"row_index": action.get("row_index"), "estado_actual": action.get("label","SKIP"), "note": "drive op"}
     res = {"row_index": action["row_index"], "id_odoo": action["id_odoo"]}
     label = action.get("label", "")
     if label == "PENDIENTE_HUMANO" or action["action"] == "human":
@@ -263,7 +340,100 @@ def execute(env, action: dict) -> dict:
             res.update({"estado_actual": "PARTIAL_RECONCILE", "note": f"vs nomina liquido ({aml.partner_id.name or '?'})"})
         return res
 
-    res.update({"estado_actual": "PENDIENTE_HUMANO", "note": "accion no implementada"})
+    if action["action"] == "confirm_proposal":
+        # Parse sugerencia_actual to find the proposed move name and partial-reconcile against its open AML
+        import re
+        sug = (action.get("sugerencia_actual") or "")
+        m = re.search(r"(FACTU[A-Z0-9/_-]+|RFACTU[A-Z0-9/_-]+|Vario/[0-9/]+|BNK1/[0-9/]+|[A-Z]+/[0-9/]+)", sug)
+        if not m:
+            res.update({"estado_actual": "ERROR", "note": f"no extraje move name de sugerencia: {sug[:80]}"})
+            return res
+        move_name = m.group(1)
+        target_move = env["account.move"].search([("name", "=", move_name), ("company_id", "=", bank_line.company_id.id)], limit=1)
+        if not target_move:
+            res.update({"estado_actual": "ERROR", "note": f"move {move_name} no encontrado"})
+            return res
+        bank_neg = bank_line.amount < 0
+        amls = target_move.line_ids.filtered(
+            lambda l: not l.reconciled and (l.credit > 0 if bank_neg else l.debit > 0)
+            and l.account_id.code in ("410000","430000","465000","475100","476000")
+        )
+        if not amls:
+            res.update({"estado_actual": "ERROR", "note": f"{move_name} sin AML abiertos compatibles"})
+            return res
+        # Prefer AML whose balance closest matches the sug amount (parseable e.g. "= 430.41")
+        sug_amount = None
+        m_amt = re.search(r"=\s*([0-9]+(?:[.,][0-9]+)?)", sug)
+        if m_amt:
+            try: sug_amount = float(m_amt.group(1).replace(",", "."))
+            except ValueError: pass
+        # Sort: by closeness to sug_amount (if any), then by account priority
+        prio = {"465000":0,"410000":1,"430000":2,"475100":3,"476000":4}
+        def _key(a):
+            if sug_amount is not None:
+                return (abs(abs(a.balance) - sug_amount), prio.get(a.account_id.code, 9))
+            return (prio.get(a.account_id.code, 9), 0)
+        target_aml = sorted(amls, key=_key)[0]
+        susp_acc = bank_line.journal_id.suspense_account_id
+        susp = bank_line.move_id.line_ids.filtered(lambda l: l.account_id == susp_acc)
+        if not susp:
+            res.update({"estado_actual": "PARTIAL_RECONCILE", "note": "ya aplicado en pasada anterior"})
+            return res
+        susp[0].write({
+            "account_id": target_aml.account_id.id,
+            "partner_id": target_aml.partner_id.id if target_aml.partner_id else False,
+        })
+        try:
+            (susp[0] + target_aml).reconcile()
+        except Exception as e:
+            res.update({"estado_actual": "ERROR", "note": f"reconcile falló: {str(e)[:200]}"})
+            return res
+        res.update({"estado_actual": "PARTIAL_RECONCILE", "note": f"confirmado vs {move_name} ({target_aml.account_id.code})"})
+        return res
+
+    if action["action"] == "smart_subida_match":
+        import re
+        amt = abs(bank_line.amount)
+        concept = (bank_line.payment_ref or "").upper()
+        # Search open in_invoices in BT with amount close (±0.05€)
+        candidates = env["account.move"].search([
+            ("company_id", "=", bank_line.company_id.id),
+            ("move_type", "in", ["in_invoice", "in_refund"]),
+            ("state", "=", "posted"),
+            ("payment_state", "in", ["not_paid", "partial"]),
+            ("amount_total", ">=", amt - 0.05),
+            ("amount_total", "<=", amt + 0.05),
+        ])
+        # Filter by partner first significant word appearing in concept
+        def first_token(name):
+            toks = re.findall(r"[A-ZÑÁÉÍÓÚ]{4,}", (name or "").upper())
+            return toks[0] if toks else ""
+        matched = [c for c in candidates if first_token(c.partner_id.name) and first_token(c.partner_id.name) in concept]
+        if not matched:
+            matched = [c for c in candidates if any(t in concept for t in re.findall(r"[A-ZÑ]{4,}", (c.partner_id.name or "").upper()))]
+        if len(matched) != 1:
+            res.update({"estado_actual": "FACTURA_SUBIDA", "note": f"esperando — {len(matched)} candidatos con importe~{amt}"})
+            return res
+        inv = matched[0]
+        oa = inv.line_ids.filtered(lambda l: l.account_id.code == "410000" and not l.reconciled)
+        if not oa:
+            res.update({"estado_actual": "FACTURA_SUBIDA", "note": f"{inv.name} ya reconciliada"})
+            return res
+        oa = oa[0]
+        susp_acc = bank_line.journal_id.suspense_account_id
+        susp = bank_line.move_id.line_ids.filtered(lambda l: l.account_id == susp_acc)
+        if not susp:
+            res.update({"estado_actual": "RECONCILED_OPEN_LINE", "note": "ya aplicado en pasada anterior"})
+            return res
+        susp[0].write({"account_id": oa.account_id.id, "partner_id": oa.partner_id.id})
+        try:
+            (susp[0] + oa).reconcile()
+            res.update({"estado_actual": "RECONCILED_OPEN_LINE", "note": f"factura subida -> reconciliado vs {inv.name} ({oa.partner_id.name})"})
+        except Exception as e:
+            res.update({"estado_actual": "ERROR", "note": f"reconcile fallo: {str(e)[:200]}"})
+        return res
+
+        res.update({"estado_actual": "PENDIENTE_HUMANO", "note": "accion no implementada"})
     return res
 
 

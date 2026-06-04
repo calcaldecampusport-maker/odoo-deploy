@@ -18,6 +18,22 @@ Algorithm:
 Usage:
   python3 bank_multi_reconciler.py [--company-id N] [--threshold-eur 1.0] [--dry-run]
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import argparse
 import itertools
 import json
@@ -119,6 +135,8 @@ def process_company(env, cid: int, tolerance: float, dry_run: bool) -> dict:
              "reconciled": 0, "errors": [], "details": []}
 
     for bl in bank_lines:
+        if (bl.payment_ref or "").upper().lstrip().startswith("TRANSACCION CONTACTLESS"):
+            continue
         target_amount = abs(bl.amount)
         if target_amount < 0.5:
             continue

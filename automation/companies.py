@@ -5,6 +5,13 @@ The poller iterates COMPANIES_BY_QUEUE; the server resolves COMPANIES_BY_VAT
 when processing a payload.
 """
 
+
+# === pipeline metadata (auto-injected, NO BORRAR) ===
+PIPELINE_NAME = 'cararjfam'
+DB_NAME = 'cararjfam'
+EXPECTED_VATS = frozenset(['B93653392', 'B72349137'])
+# === end metadata ===
+
 COMPANIES = [
     {
         "name": "CARARJFAM2019,SL",
@@ -15,6 +22,8 @@ COMPANIES = [
         "processed_folder": "1Ua07cYk8XL1GVLuZWuV_ShdHr57AtbyW",
         "contabilizado_folder": "1JwE4yblvap2qx2JtTJW6YRgpyXEsGkMu",
         "revision_folder": "11VDbGsheAp4np155afA2TVQYaSwuD380",
+        "rechazadas_folder": "1vJwd3LpShitDb5ERFt3oMhbo0fDjYkVm",
+        "informes_folder": "1raE4-0_q4QP8dELHy4NY5QxPiIecE2UU",
     },
     {
         "name": "Best Training Rincon de la Victoria, S.L.",
@@ -25,6 +34,8 @@ COMPANIES = [
         "processed_folder": None,
         "contabilizado_folder": "1gVd-6rOfCVyWkyCIUUtrcUBEg7DmWu7N",
         "revision_folder": "1Xqs_Cf_F2xss2O_GfQ8nc2xEdBKV7eGD",
+        "rechazadas_folder": "1_OzPVOWJqmgauvKQbjMucPGcEkLqdG4v",
+        "informes_folder": "1RBMYkC74cdYCIyeDD116msNjlUvIMctm",
     },
 ]
 

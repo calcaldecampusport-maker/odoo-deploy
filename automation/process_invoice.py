@@ -26,6 +26,22 @@ Exit codes:
   30 -> ORM error
   40 -> bad input
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import argparse
 import json
 import logging
@@ -58,6 +74,28 @@ DOC_TYPE_DEFAULT_ACCOUNT = {
 sys.path.insert(0, ODOO_PATH)
 import odoo  # noqa: E402
 from odoo.api import Environment  # noqa: E402
+
+
+
+def _maybe_correct_vat(env, supplier_name: str, supplier_vat: str) -> tuple[str, str | None]:
+    """Consult learned.rule vat_correction rules and override VAT if pattern matches.
+    Returns (corrected_vat, applied_pattern or None)."""
+    if not supplier_name:
+        return supplier_vat, None
+    name_upper = supplier_name.upper()
+    try:
+        rule = env["learned.rule"].search([
+            ("rule_type", "=", "vat_correction"),
+        ], limit=20)
+        for r in rule:
+            if (r.pattern or "").upper() in name_upper or name_upper in (r.pattern or "").upper():
+                corrected = (r.notes or "").strip().upper()
+                if corrected:
+                    return corrected, r.pattern
+    except Exception:
+        pass
+    return supplier_vat, None
+
 
 log = logging.getLogger("invoice_processor")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -116,22 +154,92 @@ def validate_payload(data: dict) -> list[str]:
     return errors
 
 
-def find_or_create_supplier(env, data: dict):
-    vat = normalize_vat(data["supplier_vat"], "ES")
-    partner = env["res.partner"].search([("vat", "=", vat)], limit=1)
-    if partner:
-        if partner.supplier_rank < 1:
-            partner.supplier_rank = 1
-        return partner
+def _norm_partner_name(name: str) -> str:
+    """Normaliza nombre partner para fallback search anti-duplicados.
+    Mayuscula + collapse spaces + strip SL/SA/SLU/SAU suffix."""
+    import re as _re
+    if not name: return ""
+    n = name.upper().strip()
+    n = _re.sub(r"\s+", " ", n)
+    # Quitar sufijos sociedad sin afectar nombres principales
+    n = _re.sub(r",?\s*S\.?\s*L\.?\s*(U\.?)?\.?$", "", n).strip()
+    n = _re.sub(r",?\s*S\.?\s*A\.?\s*(U\.?)?\.?$", "", n).strip()
+    n = _re.sub(r",?\s*S\.?\s*L\.?\s*L\.?$", "", n).strip()
+    return n
 
+
+def find_or_create_supplier(env, data: dict):
+    """Find or create supplier — defensa multi-capa contra duplicados:
+    1. Aplica vat_correction si hay regla aprendida para ese partner_name
+    2. Genera VARIANTES del VAT: original, con ES prefix, sin ES prefix
+    3. Busca por TODAS las variantes (no solo la canónica)
+    4. Si no encuentra por VAT, busca por nombre normalizado (catch duplicados por VAT distinto/típo)
+    5. Solo crea nuevo si nada matcheó; siempre con VAT canónico (con ES)
+    """
+    corrected, applied = _maybe_correct_vat(env, data.get("supplier_name",""), data.get("supplier_vat",""))
+    if applied:
+        log.info(f"  vat_correction applied: pattern={applied!r} VAT {data['supplier_vat']!r} -> {corrected!r}")
+        data["supplier_vat"] = corrected
+
+    extracted_vat = (data.get("supplier_vat") or "").strip().upper().replace(" ", "").replace("-", "")
+    supplier_name = (data.get("supplier_name") or "").strip()
+    canonical = normalize_vat(extracted_vat, "ES") if extracted_vat else ""
+
+    # 1. Buscar por variantes VAT (con ES, sin ES, raw)
+    variants = set()
+    if extracted_vat:
+        variants.add(extracted_vat)
+        variants.add(canonical)
+        if canonical.startswith("ES"):
+            variants.add(canonical[2:])  # sin ES
+        else:
+            variants.add("ES" + canonical)
+    for v in variants:
+        if not v: continue
+        p = env["res.partner"].search([("vat", "=", v)], limit=1)
+        if p:
+            if p.supplier_rank < 1:
+                p.supplier_rank = 1
+            # Normalizar el VAT del partner existente si difiere del canonical
+            if canonical and p.vat != canonical:
+                try:
+                    p.write({"vat": canonical})  # via ORM → respeta base_vat normalize
+                    log.info(f"  VAT del partner id={p.id} normalizado: {p.vat!r} -> {canonical!r}")
+                except Exception as e:
+                    log.warning(f"  could not normalize VAT id={p.id}: {e}")
+            return p
+
+    # 2. Fallback: buscar por nombre normalizado (anti-duplicate por VAT typo o ausente)
+    if supplier_name:
+        norm_target = _norm_partner_name(supplier_name)
+        if norm_target and len(norm_target) >= 4:
+            # Buscar candidatos por primera palabra significativa
+            first_word = norm_target.split()[0] if norm_target.split() else ""
+            if len(first_word) >= 4:
+                candidates = env["res.partner"].search([
+                    ("active", "=", True),
+                    ("is_company", "=", True),
+                    ("name", "ilike", first_word),
+                ], limit=20)
+                for c in candidates:
+                    if _norm_partner_name(c.name or "") == norm_target:
+                        log.info(f"  match by NAME (no VAT match): id={c.id} '{c.name}' — actualizo VAT/supplier_rank")
+                        if c.supplier_rank < 1:
+                            c.supplier_rank = 1
+                        if canonical and not c.vat:
+                            try: c.write({"vat": canonical})
+                            except Exception: pass
+                        return c
+
+    # 3. No match → crear nuevo con VAT canónico
     es = env.ref("base.es", raise_if_not_found=False)
     return env["res.partner"].create({
-        "name": data["supplier_name"],
-        "vat": vat,
+        "name": supplier_name,
+        "vat": canonical if canonical else False,
         "is_company": True,
         "supplier_rank": 1,
         "country_id": es.id if es else False,
-        "company_id": False,  # shared across companies
+        "company_id": False,
     })
 
 
@@ -221,7 +329,7 @@ def attach_pdf(env, move, pdf_path: Path):
         mimetype = "image/png"
     elif pdf_path.suffix.lower() in (".heic", ".heif"):
         mimetype = "image/heif"
-    return env["ir.attachment"].create({
+    att = env["ir.attachment"].create({
         "name": name,
         "type": "binary",
         "raw": data_bytes,
@@ -229,6 +337,16 @@ def attach_pdf(env, move, pdf_path: Path):
         "res_id": move.id,
         "mimetype": mimetype,
     })
+    # Vincular al chatter del move para que aparezca en la sección de notas/mensajes
+    try:
+        move.with_context(mail_create_nosubscribe=True).message_post(
+            body=f"Documento original adjunto: <b>{name}</b>",
+            attachment_ids=[att.id],
+            subtype_xmlid="mail.mt_note",
+        )
+    except Exception as e:
+        log.warning(f"could not post attachment to chatter: {e}")
+    return att
 
 
 def build_invoice_lines(env, data: dict, default_account, company_id: int):

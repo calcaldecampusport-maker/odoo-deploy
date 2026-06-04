@@ -7,6 +7,22 @@ to that account. Idempotent — already-reconciled lines are skipped.
 Run:
   python3 apply_rules_to_bank.py [--company-id N] [--min-confidence 0.85]
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import argparse
 import json
 import logging
@@ -64,10 +80,15 @@ def process_company(env, company_id: int, min_conf: float, dry_run: bool) -> dic
         ref = (line.payment_ref or "").upper()
         if not ref:
             continue
+        if ref.lstrip().startswith("TRANSACCION CONTACTLESS"):
+            continue
         chosen = None
         for r in rules:
             pat = (r.pattern or "").strip().upper()
-            if pat and pat in ref:
+            if not pat:
+                continue
+            words = pat.split()
+            if all(w in ref for w in words):
                 chosen = r
                 break
         if not chosen or not chosen.account_id:

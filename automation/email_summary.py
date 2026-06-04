@@ -5,6 +5,22 @@ Daily email summary.
 Queries Odoo for invoices created today, builds an HTML email with a table per
 company, and sends via Gmail SMTP.
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import argparse
 import logging
 import os
@@ -22,7 +38,7 @@ ENV_FILE = "/etc/automation.env"
 ODOO_BASE_URL = "https://erp.carajfam.com"
 
 sys.path.insert(0, ODOO_PATH)
-sys.path.insert(0, "/opt/automation")
+sys.path.insert(0, _HERE)
 import odoo  # noqa: E402
 from odoo.api import Environment  # noqa: E402
 import companies as comp  # noqa: E402
@@ -80,8 +96,23 @@ def _fetch_today(env, target_date: date) -> dict:
         bank_by_company[cfg["name"]] = bank_matcher.propose_for_company(env, cid)
         near_by_company[cfg["name"]] = bank_matcher.find_near_matches_for_company(env, cid)
 
+    duplicates_by_company = {}
+    errors_by_company = {}
+    try:
+        import json as _json
+        from pathlib import Path as _Path
+        run_file = _Path(f"/tmp/extractor_runs/{target_date.isoformat()}.json")
+        if run_file.exists():
+            run = _json.loads(run_file.read_text())
+            for st in (run.get("summary") or []):
+                duplicates_by_company[st["company"]] = st.get("duplicates") or []
+                errors_by_company[st["company"]] = st.get("errors") or []
+    except Exception:
+        log.exception("could not load extractor run summary")
+
     return {"by_company": by_company, "bank_by_company": bank_by_company,
-            "near_by_company": near_by_company}
+            "near_by_company": near_by_company, "duplicates": duplicates_by_company,
+            "errors": errors_by_company}
 
 
 def _render_html(target_date: date, data: dict) -> str:
@@ -139,6 +170,39 @@ a {{ color:#1f4e79; text-decoration: none; }}
     parts.append(
         f"<p style='margin-top:24px'><b>Gran total:</b> {grand_count} facturas · {grand_total:.2f} €</p>"
     )
+
+    dups = data.get("duplicates") or {}
+    if any(dups.values()):
+        parts.append("<h2>📋 Documentos rechazados como duplicado</h2>")
+        parts.append("<p>Estos PDFs ya correspondían a una factura existente — no se ha creado nada nuevo.</p>")
+        for company_name, items in dups.items():
+            if not items: continue
+            parts.append(f"<h3>{company_name}</h3>")
+            parts.append("<table><thead><tr><th>Archivo PDF</th><th>Proveedor</th><th>Ref factura</th>"
+                         "<th>Fecha</th><th class='num'>Total</th><th>Factura existente</th></tr></thead><tbody>")
+            for it in items:
+                inv_link = f"<a href='{ODOO_BASE_URL}/odoo/action-account.action_move_in_invoice_type/{it.get('invoice_id')}'>id {it.get('invoice_id')}</a>"
+                parts.append(f"<tr><td>{it.get('file','')}</td><td>{it.get('supplier','')}</td>"
+                             f"<td>{it.get('ref','')}</td><td>{it.get('invoice_date','')}</td>"
+                             f"<td class='num'>{it.get('total','')}</td><td>{inv_link}</td></tr>")
+            parts.append("</tbody></table>")
+
+    errs = data.get("errors") or {}
+    if any(errs.values()):
+        parts.append("<h2>❌ Documentos rechazados — revisión manual</h2>")
+        parts.append("<p>El extractor procesó estos archivos pero la importación a Odoo falló. Están en la subcarpeta <b>revision/</b> de Drive de cada empresa.</p>")
+        for company_name, items in errs.items():
+            if not items: continue
+            parts.append(f"<h3>{company_name}</h3>")
+            parts.append("<table><thead><tr><th>Archivo PDF</th><th>Motivo del rechazo</th></tr></thead><tbody>")
+            for it in items:
+                fname = it.get('file','')
+                reason = (it.get('reason','') or '').replace(chr(10),'<br/>')
+                # Truncate excessive log noise
+                if len(reason) > 600:
+                    reason = reason[:300] + '…' + reason[-300:]
+                parts.append(f"<tr><td>{fname}</td><td><div class='note' style='max-width:600px'>{reason}</div></td></tr>")
+            parts.append("</tbody></table>")
 
     bank_data = data.get("bank_by_company") or {}
     has_any_lines = any(lines for lines in bank_data.values())

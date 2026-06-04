@@ -13,6 +13,22 @@ Auth: header `X-Automation-Secret: <SECRET>` must match env AUTOMATION_SECRET.
 The invoice payload may include `target_company_vat`. If absent, defaults to
 the company at companies.DEFAULT_VAT.
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import json
 import logging
 import os
@@ -24,7 +40,7 @@ from pathlib import Path
 
 from flask import Flask, request, jsonify
 
-sys.path.insert(0, "/opt/automation")
+sys.path.insert(0, _HERE)
 import drive_ops  # noqa: E402
 import companies as comp  # noqa: E402
 

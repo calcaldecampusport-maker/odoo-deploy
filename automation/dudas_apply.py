@@ -13,6 +13,22 @@ This script:
 
 Run: python3 dudas_apply.py [--company-vat B...] [--dry-run]
 """
+# === pipeline isolation guard (auto-injected) ===
+import os as _os, sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+if _HERE not in _sys.path:
+    _sys.path.insert(0, _HERE)
+try:
+    import companies as _comp_guard
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
+        raise RuntimeError(
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
+            f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
+        )
+except ImportError:
+    pass  # script sin dependencia de companies.py (e.g. drive_ops)
+# === end isolation guard ===
+
 import argparse
 import io
 import json
@@ -22,7 +38,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-sys.path.insert(0, "/opt/automation")
+sys.path.insert(0, _HERE)
 import drive_ops  # noqa: E402
 import companies as comp  # noqa: E402
 
@@ -85,31 +101,39 @@ def classify_decision(decision: str) -> dict:
     if "saldo pendiente" in d or "queda pendiente" in d or "diferencia se queda" in d:
         return {"action": "partial_reconcile", "label": "PARTIAL_RECONCILE"}
 
-    # User confirms the suggested AML in sugerencia_actual ("ok", "si", "confirmo")
     if d in ("ok", "si", "sí", "confirmo", "vale", "correcto") or d.startswith("ok "):
         return {"action": "confirm_proposal", "label": "PARTIAL_RECONCILE"}
 
-    # Pago seguridad social (TGSS regimen general)
     if any(k in d for k in ["pago seguridad social", "pago ss", "seguridad social", "cotizacion ss", "tgss cotizacion"]):
         return {"action": "direct_entry", "account_code": "476000", "label": "PAGO_SS",
                 "narration": "Pago Seg Social: " + decision[:200]}
 
-    # Pago liquidacion IVA
-    if any(k in d for k in ["pago iva", "liquidacion iva", "liquidación iva", "liquidacion de iva", "liquidación de iva", "autoliquidacion iva", "iva autoliquidacion", "iva mod 303", "modelo 303"]):
+    if any(k in d for k in ["pago iva", "liquidacion iva", "liquidación iva", "liquidacion de iva", "liquidación de iva", "autoliquidacion iva", "iva autoliquidacion", "modelo 303"]):
         return {"action": "direct_entry", "account_code": "477000", "label": "PAGO_IVA",
                 "narration": "Pago liquidacion IVA: " + decision[:200]}
 
-    # Pago retenciones IRPF (mod 111/115)
     if any(k in d for k in ["retenciones irpf", "pago irpf", "retenciones e ing", "retenciones a cta", "mod 111", "mod 115", "retenciones e ingresos a cuenta"]):
         return {"action": "direct_entry", "account_code": "475100", "label": "PAGO_IRPF",
                 "narration": "Pago retenciones IRPF: " + decision[:200]}
 
-    # Pago alquiler (arrendamiento)
     if any(k in d for k in ["pago alquiler", "alquiler mensual", "renta alquiler", "arrendamiento"]):
-        return {"action": "match_open_aml_or_direct", "account_code": "621000", "label": "PAGO_ALQUILER",
+        return {"action": "match_open_aml", "account_code": "410000", "label": "PAGO_ALQUILER",
                 "narration": "Pago alquiler: " + decision[:200]}
 
-    # Pago factura proveedor — try to match against open AML on 410
+    # Usuario gestionará manualmente — dejar sin tocar
+    if any(k in d for k in ["no hacer", "buscar la contrapartida", "buscare la contrapartida", "buscaré la contrapartida", "buscar contrapartida", "manualmente", "yo lo hago"]):
+        return {"action": "skip", "label": "PENDIENTE_USUARIO"}
+
+    # Usuario ha subido la factura — esperar a la próxima pasada
+    if any(k in d for k in ["subida fact", "subida fra", "subido fact", "subido fra", "subida f.", "sube fact", "sube fra", "cubida fact", "factura subida"]):
+        return {"action": "smart_subida_match", "label": "FACTURA_SUBIDA",
+                "narration": "Factura subida, intentando match: " + decision[:200]}
+
+    # Pago contra proveedor (factura antigua, distinto ejercicio)
+    if any(k in d for k in ["contabiliza el pago contra el proveedor", "pago contra proveedor", "pago contra el proveedor", "pago a proveedor"]):
+        return {"action": "match_open_aml", "account_code": "410000", "label": "PAGO_PROVEEDOR",
+                "narration": decision[:200]}
+
     if any(k in d for k in ["pago factura", "pago fra", "pago de fra", "pago de factura",
                             "agrupacion de facturas", "agrupación de facturas",
                             "agrupacion facturas", "factura rectificativa", "factgura rectificativa"]):
@@ -219,6 +243,146 @@ def upload_xlsx(svc, fid: str, content: bytes):
     svc.files().update(fileId=fid, media_body=media, supportsAllDrives=True).execute()
 
 
+
+def classify_rechazo_decision(decision: str) -> dict:
+    """Map free-text decision on Rechazados sheet to action."""
+    d = (decision or "").lower().strip()
+    if not d:
+        return {"action": "skip", "label": ""}
+
+    if any(k in d for k in ["borrar", "eliminar", "tirar", "delete", "papelera"]):
+        return {"action": "rechazo_borrar", "label": "BORRADO"}
+
+    if any(k in d for k in ["ignorar", "omitir", "saltar", "dejar"]):
+        return {"action": "rechazo_ignorar", "label": "IGNORADO"}
+
+    if any(k in d for k in ["reprocesar", "volver a procesar", "intentar de nuevo", "intenta", "vuelve a procesar", "reintentar"]):
+        return {"action": "rechazo_reprocesar", "label": "REPROCESAR"}
+
+    if any(k in d for k in ["rechazar", "rechazada", "rechazado", "archivar", "a rechazadas", "carpeta rechazadas", "no contabiliza"]):
+        return {"action": "rechazo_archivar", "label": "ARCHIVADO_RECHAZADAS"}
+
+    # Detect CIF/NIF Spanish format: optional letter + 7-8 digits + optional letter
+    import re
+    m = re.search(r"\b([a-z]?\d{7,8}[a-z]?)\b", d)
+    has_vat_keyword = any(k in d for k in ["cif", "nif", "vat", "es el"])
+    if m and (has_vat_keyword or len(d) < 80):
+        vat = m.group(1).upper()
+        return {"action": "rechazo_cif", "label": "CIF_CORREGIDO", "vat": vat}
+
+    return {"action": "human", "label": "PENDIENTE_HUMANO_RECHAZO"}
+
+
+def collect_rechazos(svc, cfg) -> list[dict]:
+    """Read the Rechazados sheet of the company xlsx. Returns list of decisions."""
+    folder = cfg.get("pending_folder")
+    q = f"'{folder}' in parents and trashed=false and name='{XLSX_NAME}'"
+    files = svc.files().list(q=q, fields="files(id,name)", supportsAllDrives=True).execute().get("files", [])
+    if not files:
+        return []
+    fid = files[0]["id"]
+    raw = svc.files().get_media(fileId=fid, supportsAllDrives=True).execute()
+    wb = load_workbook(io.BytesIO(raw))
+    if "Rechazados" not in wb.sheetnames:
+        return []
+    ws = wb["Rechazados"]
+    out = []
+    for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True)):
+        if not row or not row[0]:
+            continue
+        archivo, file_id, motivo, tu_decision, notas = (row + (None, None, None, None, None))[:5]
+        decision = (tu_decision or "").strip() if tu_decision else ""
+        if not decision:
+            continue
+        out.append({
+            "row_index": idx,
+            "archivo": archivo,
+            "drive_file_id": file_id,
+            "motivo": motivo,
+            "tu_decision": decision,
+            "notas": notas or "",
+        })
+    return out
+
+
+
+def _do_drive_action(svc, action: dict, log_obj=None) -> dict:
+    """Execute Drive ops for rechazo_borrar / _ignorar / _reprocesar. Returns result dict."""
+    import re as _re
+    file_id = action.get("drive_file_id")
+    res = {"row_index": action.get("row_index"), "archivo": action.get("archivo"),
+           "decision": action.get("decision"), "label": action.get("label")}
+    if not file_id:
+        res.update({"estado_actual": "ERROR_RECHAZO", "note": "drive_file_id ausente"})
+        return res
+    try:
+        meta = svc.files().get(fileId=file_id, fields="parents,name", supportsAllDrives=True).execute()
+        if not meta.get("parents"):
+            res.update({"estado_actual": "ERROR_RECHAZO", "note": "archivo sin parents"})
+            return res
+        parent = meta["parents"][0]
+        rev_meta = svc.files().get(fileId=parent, fields="parents", supportsAllDrives=True).execute()
+        root = rev_meta["parents"][0] if rev_meta.get("parents") else parent
+
+        act = action["action"]
+        if act == "rechazo_borrar":
+            svc.files().update(fileId=file_id, body={"trashed": True}, supportsAllDrives=True).execute()
+            res.update({"estado_actual": "BORRADO", "note": "movido a papelera Drive"})
+            return res
+
+        if act == "rechazo_ignorar":
+            q = "'%s' in parents and name='ignorados' and mimeType='application/vnd.google-apps.folder' and trashed=false" % root
+            sub = svc.files().list(q=q, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute().get("files", [])
+            if sub:
+                ign_id = sub[0]["id"]
+            else:
+                ign_id = svc.files().create(
+                    body={"name": "ignorados", "mimeType": "application/vnd.google-apps.folder", "parents": [root]},
+                    fields="id", supportsAllDrives=True,
+                ).execute()["id"]
+            svc.files().update(fileId=file_id, addParents=ign_id, removeParents=parent, supportsAllDrives=True).execute()
+            res.update({"estado_actual": "IGNORADO", "note": "movido a ignorados/"})
+            return res
+
+        if act in ("rechazo_reprocesar", "rechazo_cif"):
+            svc.files().update(fileId=file_id, addParents=root, removeParents=parent, supportsAllDrives=True).execute()
+            res.update({"estado_actual": "REPROCESAR", "note": "movido a Pendientes/ — extractor lo procesará en la próxima pasada"})
+            return res
+
+        if act == "rechazo_archivar":
+            # Regla global: facturas rechazadas definitivamente -> carpeta 'rechazadas' (per-company)
+            # Resolver company por root (= pending_folder de la company)
+            from companies import COMPANIES
+            cfg = next((c for c in COMPANIES if c.get("pending_folder") == root), None) or {}
+            rech_id = cfg.get("rechazadas_folder")
+            if not rech_id:
+                # fallback: buscar/crear 'rechazadas' como hermana de revision/
+                q = "'%s' in parents and name='rechazadas' and mimeType='application/vnd.google-apps.folder' and trashed=false" % root
+                sub = svc.files().list(q=q, fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True).execute().get("files", [])
+                if sub:
+                    rech_id = sub[0]["id"]
+                else:
+                    rech_id = svc.files().create(
+                        body={"name": "rechazadas", "mimeType": "application/vnd.google-apps.folder", "parents": [root]},
+                        fields="id", supportsAllDrives=True,
+                    ).execute()["id"]
+            svc.files().update(fileId=file_id, addParents=rech_id, removeParents=parent, supportsAllDrives=True).execute()
+            res.update({"estado_actual": "ARCHIVADO_RECHAZADAS", "note": "movido a rechazadas/ — no se contabiliza"})
+            return res
+
+        res.update({"estado_actual": "ERROR_RECHAZO", "note": f"acción desconocida {act}"})
+        return res
+    except Exception as e:
+        res.update({"estado_actual": "ERROR_RECHAZO", "note": f"exception: {str(e)[:200]}"})
+        return res
+
+
+def _extract_partner_from_motivo(motivo: str) -> str:
+    import re as _re
+    m = _re.search(r"contacto \[([^\]]+)\]", motivo or "")
+    return (m.group(1).strip() if m else "").upper()
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--company-vat")
@@ -249,16 +413,54 @@ def main():
                 "account_code": cls.get("account_code"),
                 "narration": cls.get("narration"),
                 "partner_name": cls.get("partner_name"),
+                "sugerencia_actual": row.get("sugerencia_actual") or "",
+                "ref_o_concepto": row.get("ref_o_concepto") or "",
             })
 
         log.info(f"  {len(decisions)} decisions -> classified")
         for a in actions_payload[:20]:
             log.info(f"    row#{a['row_index']} tipo={a['tipo']} id={a['id_odoo']} -> {a['label']}")
 
+        # ===== RECHAZOS sheet =====
+        rechazos = collect_rechazos(svc, cfg)
+        rechazo_results = []
+        for r in rechazos:
+            cls = classify_rechazo_decision(r["tu_decision"])
+            action = {
+                "row_index": r["row_index"],
+                "archivo": r["archivo"],
+                "drive_file_id": r["drive_file_id"],
+                "motivo": r["motivo"],
+                "decision": r["tu_decision"],
+                "action": cls["action"],
+                "label": cls["label"],
+                "vat": cls.get("vat"),
+            }
+            # Drive op (works in this venv since we have google libs)
+            if cls["action"].startswith("rechazo_"):
+                drive_res = _do_drive_action(svc, action)
+                rechazo_results.append(drive_res)
+                # For rechazo_cif, also queue an ORM action to create learned.rule + update partner
+                if cls["action"] == "rechazo_cif":
+                    partner_name = _extract_partner_from_motivo(r["motivo"])
+                    actions_payload.append({
+                        "row_index": r["row_index"],
+                        "action": "create_vat_correction",
+                        "label": "VAT_CORRECTION",
+                        "partner_name": partner_name,
+                        "vat": cls.get("vat"),
+                        "company_id": cfg["odoo_company_id"],
+                        "archivo": r["archivo"],
+                    })
+        if rechazo_results:
+            log.info(f"  {len(rechazo_results)} rechazo decisions processed (Drive ops)")
+            for r in rechazo_results:
+                log.info(f"    {r['archivo']} -> {r['estado_actual']}: {r['note']}")
+
         # Hand off to Odoo helper to execute
         if not args.dry_run:
-            tmp_in = Path(f"/tmp/dudas/{cfg['vat']}_actions.json")
-            tmp_out = Path(f"/tmp/dudas/{cfg['vat']}_actions_result.json")
+            tmp_in = Path(f"/tmp/dudas_austral/{cfg['vat']}_actions.json")
+            tmp_out = Path(f"/tmp/dudas_austral/{cfg['vat']}_actions_result.json")
             tmp_in.parent.mkdir(parents=True, exist_ok=True)
             tmp_in.write_text(json.dumps({
                 "company_id": cfg["odoo_company_id"],
@@ -300,7 +502,11 @@ def main():
                     row_list[10] = (existing + " | " + executed["note"])[:500] if existing else executed["note"][:500]
             new_rows_data.append(row_list)
 
-        if not args.dry_run:
+        # NO sobrescribir el xlsx aquí — la republicación final con todas las hojas
+        # (Dudas + Duplicados + Rechazados + Gastos_periodicos) es responsabilidad de
+        # dudas_xlsx_publish.py que corre a las 23:39. Si lo hiciéramos aquí se perderían
+        # las hojas extra y las tu_decision que el usuario había escrito en Rechazados.
+        if False and not args.dry_run:
             upload_xlsx(svc, fid, write_xlsx(new_rows_data))
 
         overall.append({
