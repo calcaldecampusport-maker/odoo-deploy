@@ -50,3 +50,21 @@ def resolve_by_vat(vat: str) -> dict:
         return COMPANIES_BY_VAT[DEFAULT_VAT]
     cleaned = vat.replace(" ", "").upper().lstrip("E").lstrip("S") if vat.upper().startswith("ES") else vat
     return COMPANIES_BY_VAT.get(cleaned) or COMPANIES_BY_VAT.get(vat) or COMPANIES_BY_VAT[DEFAULT_VAT]
+
+
+# === overlay carpetas (folders_override.json, editado desde la web) ===
+try:
+    import json as _ovr_json, os as _ovr_os
+    _ovr_path = _ovr_os.path.join(_ovr_os.path.dirname(_ovr_os.path.abspath(__file__)), "folders_override.json")
+    if _ovr_os.path.exists(_ovr_path):
+        with open(_ovr_path) as _ovr_f:
+            _ovr_data = _ovr_json.load(_ovr_f)
+        for _ovr_c in COMPANIES:
+            _ovr_o = _ovr_data.get(str(_ovr_c.get("odoo_company_id"))) or {}
+            for _ovr_k, _ovr_v in _ovr_o.items():
+                if _ovr_v:
+                    _ovr_c[_ovr_k] = _ovr_v
+        COMPANIES_BY_VAT = {c["vat"]: c for c in COMPANIES}
+        COMPANIES_BY_QUEUE = {c["queue_folder"]: c for c in COMPANIES}
+except Exception:
+    pass
