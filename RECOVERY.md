@@ -1404,3 +1404,28 @@ ventas B2C · `30 OV` operaciones varias (migración Sage) · `35/36/39/40/41/42
 ---
 
 Fin sección 24.
+
+## 25. SII (Suministro Inmediato de Información) — AUSTRAL company 4 (2026-06-05)
+
+Austral está obligada a SII. Montado en el Odoo de Austral (BD `cararjfam_test`); la
+producción carajfam/BT (BD `cararjfam`) NO lo tiene.
+
+- **Módulo OCA**: `l10n_es_aeat_sii_oca` v17.0.1.6.2 (repo `l10n-spain`). Depende de
+  `l10n_es_aeat` (ya instalado) y de **`account_invoice_refund_link`** (repo OCA
+  `account-invoicing`, **clonado nuevo** en `/opt/odoo17/custom-addons/account-invoicing`
+  rama 17.0; añadido al `addons_path` de `/etc/odoo17.conf` al principio).
+- Deps Python: `zeep` + `requests` (ya presentes). NO requiere `requests_pkcs12`.
+- Instalación: `systemctl stop odoo17 && sudo -u odoo .../odoo-bin -c /etc/odoo17.conf -d cararjfam_test -i l10n_es_aeat_sii_oca --stop-after-init --no-http && systemctl start odoo17`.
+- **Config company 4** (res.company): `sii_test=True` (preproducción AEAT),
+  `tax_agency_id`=Agencia Tributaria española, `sii_start_date=2026-06-05`,
+  `sii_enabled=False` (pendiente de certificado).
+- **PENDIENTE**: cargar el **certificado digital AEAT** de Austral (`.p12`/`.pfx` + contraseña)
+  en `l10n.es.aeat.certificate` (company 4) → luego `sii_enabled=True` → prueba de envío.
+- Backup previo: `/root/backup_cararjfam_test_pre_sii_2026-06-05.sql.gz`.
+- Al activar: las facturas de Austral (cron + web) con fecha ≥ `sii_start_date` se envían
+  a SII automáticamente (cron del módulo). El histórico anterior NO se envía salvo que se
+  baje `sii_start_date`.
+
+---
+
+Fin sección 25.
