@@ -285,6 +285,16 @@ def import_file(file_path: Path) -> dict:
             balance_end = balance_start + sum(t["amount"] for t in txs)
 
         statement_name = f"{journal.name} {min_date.isoformat()} a {max_date.isoformat()}"
+        # Idempotencia (regla global anti-duplicado): no reimportar el mismo extracto.
+        existing = env["account.bank.statement"].search([
+            ("company_id", "=", company_id), ("journal_id", "=", journal.id),
+            ("name", "=", statement_name),
+        ], limit=1)
+        if existing and len(existing.line_ids) == len(txs):
+            return {"file": str(file_path), "format": fmt, "iban": iban,
+                    "journal_id": journal.id, "statement_id": existing.id,
+                    "lines": len(existing.line_ids), "duplicate": True,
+                    "min_date": str(min_date), "max_date": str(max_date)}
         statement = env["account.bank.statement"].with_company(company_id).create({
             "name": statement_name,
             "journal_id": journal.id,

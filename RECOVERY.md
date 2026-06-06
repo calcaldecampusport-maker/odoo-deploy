@@ -1509,3 +1509,24 @@ producción carajfam/BT (BD `cararjfam`) NO lo tiene.
 ---
 
 Fin sección 25.
+
+## 26. Limpieza duplicados banco CARARJFAM + idempotencia import extractos (2026-06-06)
+
+**Incidente:** en CARARJFAM (company 1, BD `cararjfam`) la cuenta La Caixa `572001` tenía
+124 apuntes = 62 reales (con `statement_line`) + **62 duplicados** (`BNK1/2026/00001..00062`,
+sin `statement_line`), de una importación previa del extracto contabilizada a mano
+(572001↔572998), dejando 47.532,19 € atascados en la transitoria `572998`. No conciliados.
+
+- **Fix aplicado:** backup (`/root/backup_cararjfam_pre_dedup_*.sql.gz`) + borrado de los 62
+  asientos sin línea de extracto (`button_draft()` + `unlink()`). Resultado: 572001 → 62 apuntes,
+  572998 → 5 apuntes (−1.450,39 €). Best Training no tenía duplicación (300 reales + 1 ajuste manual).
+- **Prevención (regla BNK11, GLOBAL):** se añadió el **guard de idempotencia** a
+  `/opt/automation/bank_importer.py` (CARARJFAM/BT), igual que el de `/opt/automation_austral`:
+  antes de crear el `account.bank.statement` busca uno existente con mismo
+  `(company_id, journal_id, nombre)` y, si coincide el nº de líneas, devuelve `duplicate=True`
+  sin crear nada. Backup del fichero: `bank_importer.py.bak_idem`.
+- Documentado en `REGLAS_SISTEMA.xlsx` como **BNK11 (GLOBAL)**.
+
+---
+
+Fin sección 26.
