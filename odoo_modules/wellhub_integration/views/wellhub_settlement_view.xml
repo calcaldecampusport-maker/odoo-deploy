@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_wellhub_settlement_tree" model="ir.ui.view">
+        <field name="name">wellhub.settlement.tree</field>
+        <field name="model">wellhub.settlement</field>
+        <field name="arch" type="xml">
+            <tree decoration-success="estado=='ok'"
+                  decoration-warning="estado=='aviso'"
+                  decoration-danger="estado=='error'">
+                <field name="period"/>
+                <field name="checkins_count"/>
+                <field name="precio_unitario_aplicado"/>
+                <field name="importe_esperado"/>
+                <field name="importe_recibido"/>
+                <field name="diferencia"/>
+                <field name="diferencia_pct"/>
+                <field name="bank_line_id"/>
+                <field name="estado"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_wellhub_settlement_form" model="ir.ui.view">
+        <field name="name">wellhub.settlement.form</field>
+        <field name="model">wellhub.settlement</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="period"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="checkins_count" readonly="1"/>
+                            <field name="precio_unitario_aplicado"/>
+                            <field name="importe_esperado" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="bank_line_id"/>
+                            <field name="importe_recibido"/>
+                            <field name="diferencia" readonly="1"/>
+                            <field name="diferencia_pct" readonly="1"/>
+                            <field name="estado" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Check-ins del período">
+                            <field name="checkin_ids">
+                                <tree>
+                                    <field name="checkin_at"/>
+                                    <field name="user_unique_token"/>
+                                    <field name="location_id"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Notas">
+                            <field name="notes" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_wellhub_settlement" model="ir.actions.act_window">
+        <field name="name">Liquidaciones Wellhub</field>
+        <field name="res_model">wellhub.settlement</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

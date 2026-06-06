@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_wellhub_checkin_tree" model="ir.ui.view">
+        <field name="name">wellhub.checkin.tree</field>
+        <field name="model">wellhub.checkin</field>
+        <field name="arch" type="xml">
+            <tree decoration-danger="not signature_valid">
+                <field name="checkin_at"/>
+                <field name="user_unique_token"/>
+                <field name="location_id"/>
+                <field name="event_id"/>
+                <field name="signature_valid"/>
+                <field name="settlement_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_wellhub_checkin_search" model="ir.ui.view">
+        <field name="name">wellhub.checkin.search</field>
+        <field name="model">wellhub.checkin</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="user_unique_token"/>
+                <field name="event_id"/>
+                <field name="location_id"/>
+                <filter name="firma_invalida" string="Firma inválida"
+                        domain="[('signature_valid','=',False)]"/>
+                <filter name="sin_liquidacion" string="Sin liquidación asignada"
+                        domain="[('settlement_id','=',False)]"/>
+                <filter name="mes_actual" string="Mes actual"
+                        domain="[('checkin_at','&gt;=', context_today().replace(day=1).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter name="group_dia" string="Día" context="{'group_by':'checkin_at:day'}"/>
+                    <filter name="group_mes" string="Mes" context="{'group_by':'checkin_at:month'}"/>
+                    <filter name="group_settlement" string="Liquidación" context="{'group_by':'settlement_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_wellhub_checkin_form" model="ir.ui.view">
+        <field name="name">wellhub.checkin.form</field>
+        <field name="model">wellhub.checkin</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="checkin_at"/>
+                            <field name="user_unique_token"/>
+                            <field name="location_id"/>
+                            <field name="event_id"/>
+                        </group>
+                        <group>
+                            <field name="signature_valid"/>
+                            <field name="settlement_id"/>
+                            <field name="entrada_puntual_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Payload">
+                        <field name="raw_payload" nolabel="1" widget="ace" options="{'mode':'json'}"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_wellhub_checkin" model="ir.actions.act_window">
+        <field name="name">Check-ins Wellhub</field>
+        <field name="res_model">wellhub.checkin</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_wellhub_checkin_search"/>
+    </record>
+</odoo>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_entrada_puntual_tree" model="ir.ui.view">
+        <field name="name">entrada.puntual.tree</field>
+        <field name="model">entrada.puntual</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="fecha"/>
+                <field name="fuente"/>
+                <field name="partner_id"/>
+                <field name="usuario_uuid"/>
+                <field name="precio" sum="Total"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="wellhub_checkin_id" optional="show"/>
+                <field name="settlement_id" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_entrada_puntual_form" model="ir.ui.view">
+        <field name="name">entrada.puntual.form</field>
+        <field name="model">entrada.puntual</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="fecha"/>
+                            <field name="fuente"/>
+                            <field name="partner_id"/>
+                            <field name="usuario_uuid"/>
+                        </group>
+                        <group>
+                            <field name="precio"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="wellhub_checkin_id" readonly="1"/>
+                            <field name="settlement_id" readonly="1"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="notes"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_entrada_puntual_search" model="ir.ui.view">
+        <field name="name">entrada.puntual.search</field>
+        <field name="model">entrada.puntual</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="partner_id"/>
+                <field name="usuario_uuid"/>
+                <field name="fecha"/>
+                <filter name="f_wellhub" string="Wellhub" domain="[('fuente','=','wellhub')]"/>
+                <filter name="f_walkin" string="Walk-in" domain="[('fuente','=','walkin')]"/>
+                <filter name="f_tpv" string="TPV" domain="[('fuente','=','tpv')]"/>
+                <filter name="f_manual" string="Manual" domain="[('fuente','=','manual')]"/>
+                <separator/>
+                <filter name="hoy" string="Hoy"
+                        domain="[('fecha_solo','=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="esta_semana" string="Última semana"
+                        domain="[('fecha','&gt;=', (context_today() - relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter name="este_mes" string="Mes actual"
+                        domain="[('fecha','&gt;=', context_today().replace(day=1).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter name="g_fuente" string="Fuente" context="{'group_by':'fuente'}"/>
+                    <filter name="g_dia" string="Día" context="{'group_by':'fecha_solo'}"/>
+                    <filter name="g_partner" string="Cliente" context="{'group_by':'partner_id'}"/>
+                    <filter name="g_settlement" string="Liquidación Wellhub" context="{'group_by':'settlement_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_entrada_puntual" model="ir.actions.act_window">
+        <field name="name">Entradas puntuales</field>
+        <field name="res_model">entrada.puntual</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_entrada_puntual_search"/>
+        <field name="context">{'search_default_este_mes': 1}</field>
+    </record>
+</odoo>

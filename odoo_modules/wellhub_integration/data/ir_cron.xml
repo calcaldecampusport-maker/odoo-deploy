@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="cron_wellhub_settlement_monthly" model="ir.cron">
+        <field name="name">Wellhub: conciliar liquidación mensual con cargo bancario</field>
+        <field name="model_id" ref="model_wellhub_settlement"/>
+        <field name="state">code</field>
+        <field name="code">
+# Crea/actualiza el wellhub.settlement del mes anterior si tiene cargo bancario asociado
+from datetime import date
+from dateutil.relativedelta import relativedelta
+
+today = date.today()
+prev = (today.replace(day=1) - relativedelta(months=1))
+period = prev.strftime("%Y-%m")
+
+for cfg in env["wellhub.config"].search([("active", "=", True)]):
+    company_id = cfg.company_id.id
+    # Buscar check-ins del mes anterior sin settlement asignado
+    Checkin = env["wellhub.checkin"].sudo()
+    period_start = prev.strftime("%Y-%m-01 00:00:00")
+    period_end = today.strftime("%Y-%m-01 00:00:00")
+    checkins = Checkin.search([
+        ("company_id", "=", company_id),
+        ("checkin_at", "&gt;=", period_start),
+        ("checkin_at", "&lt;", period_end),
+    ])
+
+    # Crear/buscar settlement
+    Settlement = env["wellhub.settlement"].sudo()
+    s = Settlement.search([("company_id", "=", company_id), ("period", "=", period)], limit=1)
+    if not s:
+        s = Settlement.create({
+            "company_id": company_id,
+            "period": period,
+            "precio_unitario_aplicado": cfg.precio_unitario_default,
+        })
+    # Asignar check-ins
+    checkins.sudo().write({"settlement_id": s.id})
+
+    # Buscar cargo bancario que coincida (transferencia de partner Wellhub en el mes corriente)
+    if cfg.bank_concept_pattern and not s.bank_line_id:
+        BankLine = env["account.bank.statement.line"].sudo()
+        domain = [
+            ("company_id", "=", company_id),
+            ("date", "&gt;=", today.replace(day=1).strftime("%Y-%m-%d")),
+            ("payment_ref", "ilike", cfg.bank_concept_pattern),
+        ]
+        bl = BankLine.search(domain, order="date asc", limit=1)
+        if bl:
+            s.write({
+                "bank_line_id": bl.id,
+                "importe_recibido": abs(bl.amount),
+            })
+            cfg.write({"last_settlement_at": today})
+        </field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="numbercall">-1</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

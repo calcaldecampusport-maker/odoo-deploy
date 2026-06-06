@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- =================== Configuración → Wellhub =================== -->
+    <menuitem id="menu_wellhub_root_config"
+              name="Wellhub"
+              parent="account.menu_finance_configuration"
+              sequence="100"/>
+
+    <menuitem id="menu_wellhub_config"
+              name="Configuración"
+              parent="menu_wellhub_root_config"
+              action="action_wellhub_config"
+              sequence="10"/>
+
+    <menuitem id="menu_wellhub_checkins"
+              name="Check-ins"
+              parent="menu_wellhub_root_config"
+              action="action_wellhub_checkin"
+              sequence="20"/>
+
+    <menuitem id="menu_wellhub_settlements"
+              name="Liquidaciones mensuales"
+              parent="menu_wellhub_root_config"
+              action="action_wellhub_settlement"
+              sequence="30"/>
+
+    <!-- =================== Económico → Entradas puntuales =================== -->
+    <menuitem id="menu_entrada_puntual"
+              name="Entradas puntuales"
+              parent="account.menu_finance"
+              action="action_entrada_puntual"
+              sequence="50"/>
+
+</odoo>

@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_wellhub_config_user,wellhub.config.user,model_wellhub_config,base.group_user,1,0,0,0
+access_wellhub_config_manager,wellhub.config.manager,model_wellhub_config,account.group_account_manager,1,1,1,1
+access_wellhub_checkin_user,wellhub.checkin.user,model_wellhub_checkin,base.group_user,1,0,0,0
+access_wellhub_checkin_manager,wellhub.checkin.manager,model_wellhub_checkin,account.group_account_manager,1,1,1,1
+access_wellhub_settlement_user,wellhub.settlement.user,model_wellhub_settlement,base.group_user,1,0,0,0
+access_wellhub_settlement_manager,wellhub.settlement.manager,model_wellhub_settlement,account.group_account_manager,1,1,1,1
+access_entrada_puntual_user,entrada.puntual.user,model_entrada_puntual,base.group_user,1,0,0,0
+access_entrada_puntual_manager,entrada.puntual.manager,model_entrada_puntual,account.group_account_manager,1,1,1,1

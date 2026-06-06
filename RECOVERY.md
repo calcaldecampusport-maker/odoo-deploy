@@ -341,6 +341,86 @@ El procesamiento corre en `dudas_apply.py` (Drive ops in-place) + `dudas_apply_o
 - `process_invoice.py` consulta `learned.rule(vat_correction)` ANTES de la validación VAT (`base_vat`); si encuentra match por `pattern in supplier_name`, sustituye el VAT extraído por el guardado.
 - `dudas_apply.py` ya **NO** sobrescribe el xlsx — eso lo hace `dudas_xlsx_publish.py` para preservar todas las hojas y las `tu_decision` que el usuario haya escrito.
 
+### 11.2.0.-4 Migración BT cararjfam → round_facturacion (jun 2026)
+
+**Contexto**: BT (Best Training Rincón de la Victoria, CIF B72349137) operaba duplicado:
+- COMPRAS (in_invoice + nóminas + IRPF/SS + bancos) en BD `cararjfam` (company_id=2)
+- VENTAS (out_invoice de la facturación Round) en BD `round_facturacion` (company_id=3)
+
+**Consolidación realizada**: todo BT vive ahora en `round_facturacion`.
+
+#### Estado tras migración
+
+| Sistema | Antes | Después |
+|---|---|---|
+| BT en `cararjfam` (company_id=2) | activa | **archivada** (`active=False`) |
+| BT en `round_facturacion` (company_id=3) | solo ventas | **completa**: ventas + 708 moves migrados (97 in_invoice/refund + 611 entries: nóminas, bancos, impuestos) |
+| `/opt/automation/` pipeline | CARARJFAM + BT | **solo CARARJFAM** |
+| `/opt/automation_bt_round/` pipeline | no existía | **nuevo**, apunta a `round_facturacion` company_id=3 |
+| Cron BT | 23:30 con cararjfam | **00:23–00:40** apuntando a round_facturacion |
+| `austral-contab-web` app.db empresa id=3 | `odoo_db=cararjfam, company_id=2` | **`odoo_db=round_facturacion, company_id=3, pipeline_dir=/opt/automation_bt_round`** |
+
+#### Restore de la migración
+
+Si tras restore las BDs no incluyen los moves migrados:
+
+1. Verifica que `/opt/odoo17/custom-addons/learned_rules/` está instalado en `round_facturacion`:
+   ```bash
+   sudo -u odoo /opt/odoo17/venv/bin/python /opt/odoo17/odoo/odoo-bin -c /etc/odoo17.conf -d round_facturacion -i learned_rules --stop-after-init --no-http
+   ```
+2. Re-ejecuta el migrador (idempotente — saltará lo ya migrado):
+   ```bash
+   sudo -u odoo /opt/odoo17/venv/bin/python /opt/automation/_migrate_bt_to_round.py
+   ```
+3. Fix de move_type (convierte las facturas migradas como `entry` → `in_invoice`/`in_refund` original):
+   ```bash
+   sudo -u odoo /opt/odoo17/venv/bin/python /opt/automation/_fix_invoice_move_type.py
+   ```
+4. Archiva BT en cararjfam:
+   ```python
+   env["res.company"].browse(2).write({"active": False})
+   ```
+5. Actualiza `austral-contab-web` app.db:
+   ```sql
+   UPDATE empresa SET odoo_db='round_facturacion', odoo_company_id=3, pipeline_dir='/opt/automation_bt_round'
+   WHERE id=3 AND clave='bt';
+   ```
+6. Aplica isolation guard incluyendo `/opt/automation_bt_round/`:
+   ```bash
+   sudo -u odoo /opt/automation/_isolate_pipelines.py
+   ```
+
+#### Pipeline `/opt/automation_bt_round/` — config
+
+- `companies.py`: `PIPELINE_NAME='bt_round'`, `DB_NAME='round_facturacion'`, `EXPECTED_VATS={'B72349137'}`
+- Mismas folder_ids Drive que tenía BT en `/opt/automation/companies.py` antes
+- `DB_NAME = "round_facturacion"` sed-replaced en todos los scripts del pipeline
+- Logs en `/var/log/automation_bt_round/`
+- Cron entries: 00:23 learning_drive → 00:25 learning → 00:30 extractor → 00:36 dudas_apply → 00:37 apply_rules + bank_reconciler → 00:38 multi_reconciler + xlsx_collect → 00:39 xlsx_publish → 00:40 email_summary
+
+### 11.2.0.-3.5 Aplicación web Austral Contab (austral.carajfam.com)
+
+Proyecto separado en `/opt/austral-contab-web/` que ofrece dashboards de contabilidad para AUSTRAL + CARARJFAM + BT. Es un SaaS multi-tenant:
+
+| Path | Contenido |
+|---|---|
+| `/opt/austral-contab-web/backend/` | Flask app (puerto 5000) |
+| `/opt/austral-contab-web/backend/data/app.db` | SQLite con users, sessions, empresa registry |
+| `/var/www/austral/` | SPA React build |
+| `/etc/nginx/sites-enabled/austral.carajfam.com` | nginx vhost (HTTPS Let's Encrypt) |
+| `austral-contab-web.service` | systemd unit |
+
+**Tabla `empresa` en app.db** mapea cada cliente a su BD Odoo:
+```
+id | clave     | nombre                            | odoo_db           | odoo_company_id | pipeline_dir
+---+-----------+-----------------------------------+-------------------+-----------------+----------------
+ 1 | austral   | International Austral Sport, S.A. | cararjfam_test    | 4               | /opt/automation_austral
+ 2 | cararjfam | CARARJFAM2019,SL                  | cararjfam         | 1               | /opt/automation
+ 3 | bt        | Best Training Rincon...           | round_facturacion | 3               | /opt/automation_bt_round
+```
+
+Si cambia el mapeo Odoo de cualquier empresa: hay que actualizar la fila correspondiente en `app.db`. Backend cachea — `systemctl restart austral-contab-web` tras el UPDATE.
+
 ### 11.2.0.-3 Aislamiento entre pipelines multi-empresa (defensa final)
 
 Tras el bug del 1-jun-2026 (sys.path cruzado), se aplican **4 capas defensivas** para que ningún script pueda procesar documentos de una empresa que no le corresponde:
