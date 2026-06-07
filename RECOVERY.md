@@ -2,6 +2,11 @@
 
 Pasos exactos para reconstruir el servidor desde un backup en caso de pérdida total. Ordenados, sin omisiones.
 
+> 📌 **Mapa de empresas ↔ Odoo ↔ pipelines ↔ web ↔ Drive:** ver
+> [`MAPA_EMPRESAS.md`](./MAPA_EMPRESAS.md) (también en `/opt/automation/MAPA_EMPRESAS.md`).
+> Es la fuente de verdad del cruce de las 4 capas; consúltalo antes de mover o
+> dar de alta cualquier empresa/automatización.
+
 ---
 
 ## 0. Antes de empezar
