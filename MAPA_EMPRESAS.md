@@ -145,15 +145,36 @@ seguir.
 
 ## Pendientes / anomalías conocidas (2026-06-07)
 
-1. **BT — extracto bancario en la BD equivocada.** El extracto Santander de BT
-   (242 líneas, a 2026-06-05) entró en `cararjfam/2` (resto de ejecución manual
-   de ayer), no en `round_facturacion/3`. Falta: importarlo en
-   `round_facturacion/3` (diario "Banco Santander" id 21) y limpiar
-   `cararjfam/2` (statements #3 enero–abr y #4 mar–jun + apuntes de BT).
-2. **AUSTRAL — VAT del pipeline ≠ VAT de Odoo** (`B44821965` vs `A39100573`).
+1. **BT — extracto bancario iba a la BD equivocada — CAUSA RAÍZ ARREGLADA.**
+   `/opt/automation_bt_round/extractor.py` tenía
+   `BANK_IMPORTER = "/opt/automation/bank_importer.py"` (el de **cararjfam**,
+   `DB_NAME=cararjfam`) → los extractos de BT se importaban en `cararjfam/2` en
+   vez de `round_facturacion/3`. El "imported" del log era falso: el guard de
+   idempotencia veía el statement ya metido en cararjfam/2 y devolvía OK.
+   - ✅ Corregido a `"/opt/automation_bt_round/bank_importer.py"` (`round_facturacion`).
+   - ✅ El log de éxito ahora imprime el resultado real del importador (BD/statement/duplicado).
+   - ✅ Colisión de IBAN resuelta: el IBAN `ES98…7577` estaba en company 1
+     (legacy "NO USAR", journal 15) **y** company 3 (journal 21). Quitado de la
+     legacy → routing inequívoco a company 3. (`account.journal._order` no es por
+     id, así que la colisión era impredecible.)
+   - ⏳ PENDIENTE: el usuario deja el fichero Santander REAL de BT en su carpeta
+     Drive (queue) → el cron de las 00:30 lo importará en `round_facturacion/3`.
+     Backup `extractor.py.bak_bankfix` en el VPS.
+2. **`cararjfam/2` (BT legacy) — limpiar MAÑANA** (tras confirmar el banco en
+   round_facturacion/3). Las 102 facturas ya están replicadas en
+   round_facturacion/3 (verificado: las 102 refs ⊆ las 110 de round/3). Quedan
+   por borrar: statements Santander #3 (ene–abr) y #4 (mar–jun) + sus 542
+   apuntes + 6 varios. Objetivo: cararjfam/2 vacía/archivada, nunca más BT ahí.
+3. **AUSTRAL — VAT del pipeline ≠ VAT de Odoo** (`B44821965` vs `A39100573`).
    Decidir cuál es el bueno y alinear `companies.py` + Odoo.
-3. **`cararjfam/2` (BT legacy)** debe quedar vacía/archivada tras la limpieza,
-   para que nunca más se contabilice BT ahí.
+
+### ⚠️ Lección / regla derivada
+Cada pipeline DEBE usar **su propio** `bank_importer.py` (y sepa importer, etc.),
+nunca el de otro pipeline — el `DB_NAME` está hardcodeado en cada importador.
+Al clonar un pipeline nuevo, revisar que TODAS las constantes de rutas
+(`BANK_IMPORTER`, `SEPA_IMPORTER`, …) en su `extractor.py` apunten a su propia
+carpeta. Verificación rápida:
+`grep -nH 'BANK_IMPORTER =\|SEPA_IMPORTER =' /opt/automation*/extractor.py`
 
 ---
 
