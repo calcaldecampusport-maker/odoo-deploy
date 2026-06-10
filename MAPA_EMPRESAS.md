@@ -168,13 +168,30 @@ seguir.
 3. **AUSTRAL — VAT del pipeline ≠ VAT de Odoo** (`B44821965` vs `A39100573`).
    Decidir cuál es el bueno y alinear `companies.py` + Odoo.
 
-### ⚠️ Lección / regla derivada
-Cada pipeline DEBE usar **su propio** `bank_importer.py` (y sepa importer, etc.),
-nunca el de otro pipeline — el `DB_NAME` está hardcodeado en cada importador.
-Al clonar un pipeline nuevo, revisar que TODAS las constantes de rutas
-(`BANK_IMPORTER`, `SEPA_IMPORTER`, …) en su `extractor.py` apunten a su propia
-carpeta. Verificación rápida:
-`grep -nH 'BANK_IMPORTER =\|SEPA_IMPORTER =' /opt/automation*/extractor.py`
+### ⚠️ Lección / regla derivada (ampliada jun 2026)
+Cada pipeline DEBE usar **sus propios** scripts (importadores + procesadores),
+nunca los de otro pipeline — el `DB_NAME` (y la company) está **hardcodeado en
+cada script**. Si un `extractor.py` apunta a un script de otro pipeline, los
+documentos se contabilizan en la BD/empresa equivocada, o fallan con
+"missing accounts in company N" (esa company no existe en esa BD).
+
+**Incidente bt_round (jun 2026):** su `extractor.py` apuntaba a varios scripts de
+`/opt/automation` (cararjfam, `DB_NAME=cararjfam`). Síntomas: nóminas y facturas
+de BT fallaban con `missing accounts in company 3` (no existe en cararjfam) y los
+extractos bancarios se colaban en `cararjfam/2`. **Las 5 constantes a revisar en
+`extractor.py`:** `BANK_IMPORTER`, `SEPA_IMPORTER`, `PROCESS_SCRIPT`,
+`NOMINA_SCRIPT`, `TAX_PAYMENT_SCRIPT`. Todas corregidas a
+`/opt/automation_bt_round/…`. `sepa_xml_importer.py` no existe en ningún pipeline
+(SEPA-XML no implementado; las remesas SEPA entran por el backend de Round).
+Backups VPS: `extractor.py.bak_bankfix`, `.bak_procfix`, `.bak_procfix2`.
+
+**Verificación rápida** — ninguna ruta debe apuntar a `/opt/automation/` desde
+otro pipeline, y cada script destino debe tener su `DB_NAME` correcto:
+```
+grep -noE '/opt/automation[a-z_]*/[a-zA-Z_]+\.py' /opt/automation_<X>/extractor.py | sort -u
+for f in process_invoice nomina_processor tax_payment_processor bank_importer; do
+  grep -m1 '^DB_NAME' /opt/automation_<X>/$f.py; done
+```
 
 ---
 
