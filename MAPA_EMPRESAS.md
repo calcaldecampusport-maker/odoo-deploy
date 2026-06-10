@@ -185,6 +185,29 @@ extractos bancarios se colaban en `cararjfam/2`. **Las 5 constantes a revisar en
 (SEPA-XML no implementado; las remesas SEPA entran por el backend de Round).
 Backups VPS: `extractor.py.bak_bankfix`, `.bak_procfix`, `.bak_procfix2`.
 
+### Auditoría 2026-06-10 (código + crons + reglas) — resultados
+- ✅ Cero referencias cruzadas entre pipelines (todas las constantes de script OK).
+- ✅ `DB_NAME` coherente en los ~20 scripts de cada pipeline.
+- ✅ Guards de aislamiento (`PIPELINE_MISMATCH`) en 26-28/30 scripts (faltan solo
+  en `companies.py`/`drive_ops.py`, que no tocan BD — correcto).
+- 🔴 **Arreglado**: `bt_round/bank_importer.py` NO tenía el guard de idempotencia
+  BNK11 (copia anterior al fix) → portado (backup `.bak_idem`).
+- 🔴 **Arreglado**: las copias de `build_rules_xlsx.py` en austral/bt_round estaban
+  desfasadas (sin BNK11/FAC16) y TODAS escriben al MISMO file_id de Drive →
+  ejecutar una copia vieja pisaba el xlsx canónico. Sincronizadas las 3 (md5
+  idéntico). REGLA: editar reglas SOLO en `/opt/automation/build_rules_xlsx.py`
+  y resincronizar copias (`cp` a los otros dos) en el mismo turno.
+- 🟡 Backups: local diario OK para las 3 BDs (`odoo_backup.sh` dumpa todas las BDs
+  del rol odoo; `round-backup.sh` cubre round_config+round_facturacion con restic).
+  **Offsite Drive solo cararjfam** (`backup_to_drive.py` en cron); austral
+  (cararjfam_test) y bt_round tienen el script pero SIN cron de backup a Drive.
+- 🟡 `detect_duplicate_partners` y `periodic_expenses_check`: solo en cron de
+  cararjfam (bt_round tiene los scripts con DB correcta pero sin cron).
+- 🟡 Crons de bt_round/austral usan el venv de `/opt/automation/venv` para varios
+  jobs (funciona; fragilidad si ese venv cambia).
+- ℹ️ `ir.mail_server` solo configurado en BD cararjfam (decisión del usuario);
+  round_facturacion y cararjfam_test sin servidor SMTP en Odoo.
+
 **Verificación rápida** — ninguna ruta debe apuntar a `/opt/automation/` desde
 otro pipeline, y cada script destino debe tener su `DB_NAME` correcto:
 ```
