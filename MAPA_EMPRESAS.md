@@ -197,12 +197,14 @@ Backups VPS: `extractor.py.bak_bankfix`, `.bak_procfix`, `.bak_procfix2`.
   ejecutar una copia vieja pisaba el xlsx canónico. Sincronizadas las 3 (md5
   idéntico). REGLA: editar reglas SOLO en `/opt/automation/build_rules_xlsx.py`
   y resincronizar copias (`cp` a los otros dos) en el mismo turno.
-- 🟡 Backups: local diario OK para las 3 BDs (`odoo_backup.sh` dumpa todas las BDs
-  del rol odoo; `round-backup.sh` cubre round_config+round_facturacion con restic).
-  **Offsite Drive solo cararjfam** (`backup_to_drive.py` en cron); austral
-  (cararjfam_test) y bt_round tienen el script pero SIN cron de backup a Drive.
-- 🟡 `detect_duplicate_partners` y `periodic_expenses_check`: solo en cron de
-  cararjfam (bt_round tiene los scripts con DB correcta pero sin cron).
+- ✅ (resuelto 2026-06-11) Backups offsite Drive para las 3 empresas: crons 04:00
+  (cararjfam), 04:20 (bt_round) y 04:40 (austral), cada uno con sus propios
+  `DAY_FILE_IDS` en Drive (ver RECOVERY §27). ⚠️ la copia inicial de
+  `backup_to_drive.py` en bt_round traía los file_ids de CARARJFAM y habría
+  machacado sus backups — al clonar pipeline cambiar SIEMPRE `DAY_FILE_IDS`,
+  `FILESTORE` y `AUTOMATION_DIR`. Prueba real OK: BT 144MB / AUSTRAL 204MB.
+- ✅ (resuelto 2026-06-11) `detect_duplicate_partners` en cron de bt_round (06:30).
+  `periodic_expenses_check` sigue solo en cararjfam (sus gastos periódicos).
 - 🟡 Crons de bt_round/austral usan el venv de `/opt/automation/venv` para varios
   jobs (funciona; fragilidad si ese venv cambia).
 - ℹ️ `ir.mail_server` solo configurado en BD cararjfam (decisión del usuario);

@@ -1535,3 +1535,39 @@ sin `statement_line`), de una importación previa del extracto contabilizada a m
 ---
 
 Fin sección 26.
+
+## 27. Pipeline bt_round: rutas propias, nóminas aditivas, backups offsite (2026-06-09/10)
+
+**Incidente raíz:** `/opt/automation_bt_round/extractor.py` apuntaba a scripts del pipeline
+cararjfam (`BANK_IMPORTER`, `PROCESS_SCRIPT`, `NOMINA_SCRIPT`, `TAX_PAYMENT_SCRIPT`,
+`SEPA_IMPORTER` → `DB_NAME=cararjfam`). Síntomas: extractos de BT en `cararjfam/2`,
+nóminas/facturas fallando con `missing accounts in company 3`. **Las 5 constantes corregidas**
+a `/opt/automation_bt_round/` (backups `extractor.py.bak_bankfix/.bak_procfix/.bak_procfix2`).
+`sepa_xml_importer.py` no existe en ningún pipeline (SEPA entra por el backend Round).
+
+- **Nóminas aditivas por empleado** (`nomina_processor.py`, solo bt_round): get-or-create del
+  asiento mensual `Nomina YYYY-MM (%)`; si existe, añade SOLO los empleados que falten
+  (bloque cuadrado DR640+DR642 / CR4751+CR476+CR465.NNN); todos presentes → DUPLICATE.
+  Guard: posteado y conciliado → no se edita. Backups `.bak_dedup/.bak_accum`.
+- **Reglas IVA-incluido portadas a los 3 pipelines**: `_normalize_iva_included_lines` en
+  `process_invoice.py` (antes solo austral) + reglas VAT-INCLUDED/escaneo-borroso en el PROMPT
+  de los 3 extractores. REGLAS_SISTEMA: FAC14→GLOBAL, FAC16 nueva.
+- **Auditoría 2026-06-10**: BNK11 portado a `bt_round/bank_importer.py` (faltaba; `.bak_idem`);
+  copias de `build_rules_xlsx.py` sincronizadas (las 3 escriben al MISMO file_id de Drive —
+  editar SOLO la canónica `/opt/automation/` y re-copiar a los otros dos).
+- **Backups offsite Drive nuevos** (antes solo cararjfam): crons 04:20 (bt_round) y 04:40
+  (austral) + 06:30 `detect_duplicate_partners` bt_round. `backup_to_drive.py` por pipeline con
+  sus propios `DAY_FILE_IDS` (pre-creados vía MCP OAuth; la SA solo hace UPDATE):
+  - BT (carpeta raíz BT): L `1vsIM8SKrF36Qi5E0XCHie_artRq3YnH6` M `1qfJqpFhzgAAiO_NqjSPW4iMr29gcfYKB`
+    X `1tYKl4psoBeo2b0Go1U1c509xxgwSfjYr` J `14pTjW5biHDkY5n43JIAWxKNYm9CIMdLV`
+    V `1H8si6Uh4IT47OhLxbsLN1M78JTB8cJan` S `1q7inAUgZiTqWCfN9zTJEk70Ig8a4QgHU` D `1Kfu8rXBOU5oj49Gxd0D2wtMIN6T6qaTa`
+  - AUSTRAL (Mi Odoo AUSTRAL): L `1l7dmt3Xytz7bnm8xnOoZkkbWlvmNdiQf` M `1h5pa09ja3RdiZ51XnJyjQCaziPxIzuC6`
+    X `1v5GYoyvPHff7DweVIMOyyM343FWaOb9c` J `1cp7X8g90MTxVw29c_ud6jVBGjRVHJSL-`
+    V `1SIYtd1z_hxGLxKFbpXRaC4MhWxKupZNe` S `1Tu_s-HObbeWQ-ldrEu_71t4tT3KfLm5B` D `10_YKTn-t7Nz8sXBAToZz6NGhlB2GGUjP`
+  ⚠️ La copia inicial de `backup_to_drive.py` en bt_round traía los file_ids de CARARJFAM
+  (habría machacado sus backups): al clonar pipeline, CAMBIAR SIEMPRE `DAY_FILE_IDS`,
+  `FILESTORE` y `AUTOMATION_DIR`.
+
+---
+
+Fin sección 27.
