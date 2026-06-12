@@ -165,8 +165,15 @@ seguir.
    round_facturacion/3 (verificado: las 102 refs ⊆ las 110 de round/3). Quedan
    por borrar: statements Santander #3 (ene–abr) y #4 (mar–jun) + sus 542
    apuntes + 6 varios. Objetivo: cararjfam/2 vacía/archivada, nunca más BT ahí.
-3. **AUSTRAL — VAT del pipeline ≠ VAT de Odoo** (`B44821965` vs `A39100573`).
-   Decidir cuál es el bueno y alinear `companies.py` + Odoo.
+3. ✅ (resuelto 2026-06-12) **AUSTRAL — VAT alineado a `A39100573`** (el real de la
+   company 4 en Odoo). `companies.py` (vat/DEFAULT_VAT, con `B44821965` como alias
+   en EXPECTED_VATS) + cron `extractor.py --company A39100573`. El desajuste hacía
+   que el reproceso web fallara con "no company config" (la web pasa el VAT de Odoo).
+4. (2026-06-12) Austral: añadido cron `dudas_apply.py` 03:03 (faltaba: las
+   respuestas del xlsx nunca se aplicaban). Inferencia IRPF (FAC13) en
+   `extractor._validate` + `process_invoice` — facturas con retención 19/15/7%
+   ya no caen a rechazadas por math mismatch. Paridad de botones rechazados
+   web/Drive en austral-contab-web (reprocesar+comentario+eliminar para uploads web).
 
 ### ⚠️ Lección / regla derivada (ampliada jun 2026)
 Cada pipeline DEBE usar **sus propios** scripts (importadores + procesadores),
