@@ -1,0 +1,38 @@
+# Crontab del usuario "odoo" (VPS round-vps) — snapshot 2026-06-12
+# Restaurar:  sudo -u odoo crontab crontab_odoo.txt
+# Fuente de verdad = el crontab vivo del VPS; este fichero es la copia versionada.
+#
+30 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation/extractor.py >> /var/log/automation/extractor.log 2>&1
+35 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation/poller.py >> /var/log/automation/poller.log 2>&1
+40 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation/email_summary.py >> /var/log/automation/email.log 2>&1
+23 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation/learning_drive.py >> /var/log/automation/learning.log 2>&1
+25 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation/learning.py --mode both >> /var/log/automation/learning.log 2>&1
+37 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation/bank_reconciler.py --threshold 90 >> /var/log/automation/reconciler.log 2>&1
+38 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation/bank_multi_reconciler.py >> /var/log/automation/multi_reconciler.log 2>&1
+38 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation/dudas_xlsx_collect.py >> /var/log/automation/dudas.log 2>&1
+39 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation/dudas_xlsx_publish.py >> /var/log/automation/dudas.log 2>&1
+36 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation/dudas_apply.py >> /var/log/automation/dudas.log 2>&1
+37 23 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation/apply_rules_to_bank.py >> /var/log/automation/apply_rules.log 2>&1
+0 4 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation/backup_to_drive.py >> /var/log/automation/backup.log 2>&1
+0 8 10 1,4,7,10 * cd /opt/automation && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation/periodic_expenses_check.py >> /var/log/automation/periodic.log 2>&1
+0 3 * * * cd /opt/automation_austral && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_austral/extractor.py --company A39100573 >> /var/log/automation_austral/extractor.log 2>&1
+5 3 * * * cd /opt/automation_austral && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_austral/dudas_xlsx_collect.py >> /var/log/automation_austral/dudas_collect.log 2>&1
+7 3 * * * cd /opt/automation_austral && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_austral/dudas_xlsx_publish.py >> /var/log/automation_austral/dudas_publish.log 2>&1
+10 3 * * * cd /opt/automation_austral && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_austral/email_summary.py >> /var/log/automation_austral/email.log 2>&1
+0 2 * * 1-5 cd /opt/automation_austral && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_austral/ps_liquidacion_diaria.py >> /var/log/automation_austral/ps_liquidacion.log 2>&1
+30 2 2 * * cd /opt/automation_austral && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_austral/ps_historico_mensual.py >> /var/log/automation_austral/ps_historico.log 2>&1
+0 6 * * * cd /opt/automation && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation/detect_duplicate_partners.py >> /var/log/automation/duplicates.log 2>&1
+30 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_bt_round/extractor.py >> /var/log/automation_bt_round/extractor.log 2>&1
+36 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_bt_round/dudas_apply.py >> /var/log/automation_bt_round/dudas.log 2>&1
+37 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_bt_round/apply_rules_to_bank.py >> /var/log/automation_bt_round/apply_rules.log 2>&1
+37 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_bt_round/bank_reconciler.py --threshold 90 >> /var/log/automation_bt_round/reconciler.log 2>&1
+38 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_bt_round/bank_multi_reconciler.py >> /var/log/automation_bt_round/multi_reconciler.log 2>&1
+38 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_bt_round/dudas_xlsx_collect.py >> /var/log/automation_bt_round/dudas.log 2>&1
+39 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_bt_round/dudas_xlsx_publish.py >> /var/log/automation_bt_round/dudas.log 2>&1
+40 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_bt_round/email_summary.py >> /var/log/automation_bt_round/email.log 2>&1
+23 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_bt_round/learning_drive.py >> /var/log/automation_bt_round/learning.log 2>&1
+25 0 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_bt_round/learning.py --mode both >> /var/log/automation_bt_round/learning.log 2>&1
+20 4 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_bt_round/backup_to_drive.py >> /var/log/automation_bt_round/backup.log 2>&1
+40 4 * * * cd /opt/automation_austral && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_austral/backup_to_drive.py >> /var/log/automation_austral/backup.log 2>&1
+30 6 * * * cd /opt/automation_bt_round && HOME=/opt/odoo17 /opt/odoo17/venv/bin/python /opt/automation_bt_round/detect_duplicate_partners.py >> /var/log/automation_bt_round/duplicates.log 2>&1
+3 3 * * * cd /opt/automation_austral && HOME=/opt/odoo17 /opt/automation/venv/bin/python /opt/automation_austral/dudas_apply.py >> /var/log/automation_austral/dudas_apply.log 2>&1
