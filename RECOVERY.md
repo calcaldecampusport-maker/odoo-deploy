@@ -1584,7 +1584,7 @@ Hardening aplicado tras auditoría completa:
 - **Dedup facturas reforzado** (`process_invoice.py` en los 3 pipelines): `already_exists` añade fallback cross-partner por `ref+fecha+importe` (evita doble asiento cuando el fallback de VAT crea un partner duplicado — caso pepco).
 - Backups de todos los ficheros tocados: `*.bak_audit` / `*.bak_dedup2` en el VPS.
 
-Pendiente (no urgente): pin de dependencias (`pip freeze`), venv por pipeline, drill de restore semestral incluyendo `app.db`.
+Cerrado 2026-07-03: **pin de deps** (`/opt/automation/requirements.lock.txt` + `austral-contab-web/backend/requirements.lock.txt`); **`secure_filename`** en el reproceso de Drive; **drill de restore** `/usr/local/bin/restore_drill_appdb.sh` (cron mensual día 1 07:00 → `/var/log/restore_drill.log`; valida integridad SQLite + nº usuarios/empresas/uploads del `app.db` restaurado desde restic — probado OK). **Venv por pipeline: decisión de NO separar** — austral/bt_round comparten `/opt/automation/venv` a propósito; el riesgo real (reinstalación reproducible) queda cubierto por el lock, y separar triplicaría el mantenimiento sin ganancia neta.
 
 ---
 
