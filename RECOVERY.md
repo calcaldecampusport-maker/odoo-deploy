@@ -1571,3 +1571,21 @@ a `/opt/automation_bt_round/` (backups `extractor.py.bak_bankfix/.bak_procfix/.b
 ---
 
 Fin sección 27.
+
+## 28. Auditoría seguridad + fiabilidad web/pipelines (2026-07-03)
+
+Hardening aplicado tras auditoría completa:
+- **Permisos secretos**: `/opt/austral-contab-web/backend/.env` y `data/app.db` → `chmod 600 odoo:odoo` (antes 644, world-readable; expiraba JWT_SECRET + hashes + TOTP).
+- **Backup de `app.db`**: añadido `/opt/austral-contab-web` a los paths de restic en `round-backup.sh` (antes NO se respaldaba → riesgo de perder usuarios/2FA/empresas). Backup previo en `/root/app.db.bak_pre_audit_*`.
+- **gunicorn**: `austral-contab-web.service` ExecStart pasa de `flask run` (dev server) a `gunicorn -w 1 --threads 8 wsgi:app` (1 worker para preservar rate-limit y mutex del extractor, que viven en memoria). Nuevo `backend/wsgi.py`.
+- **ProxyFix**: `app.wsgi_app = ProxyFix(...)` en `__init__.py` → `remote_addr` = IP real (X-Forwarded-For). Arregla el rate-limit de login (antes era 127.0.0.1 global).
+- **Multi-tenant uploads**: `DocumentUpload.empresa_id` (col nueva + backfill desde users) y filtros por `g.empresa` en `/api/documents/uploads` y `/api/rechazados` (antes los uploads web fallidos se veían entre empresas).
+- **Cabeceras nginx** (server 443 + locations index.html/assets): HSTS, X-Frame-Options SAMEORIGIN, X-Content-Type-Options nosniff, Referrer-Policy.
+- **Dedup facturas reforzado** (`process_invoice.py` en los 3 pipelines): `already_exists` añade fallback cross-partner por `ref+fecha+importe` (evita doble asiento cuando el fallback de VAT crea un partner duplicado — caso pepco).
+- Backups de todos los ficheros tocados: `*.bak_audit` / `*.bak_dedup2` en el VPS.
+
+Pendiente (no urgente): pin de dependencias (`pip freeze`), venv por pipeline, drill de restore semestral incluyendo `app.db`.
+
+---
+
+Fin sección 28.
