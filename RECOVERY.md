@@ -1589,3 +1589,30 @@ Cerrado 2026-07-03: **pin de deps** (`/opt/automation/requirements.lock.txt` + `
 ---
 
 Fin sección 28.
+
+## 29. BT: extractos solapados, nóminas con anticipo, motivo por empresa (2026-07-05)
+
+- **Duplicados banco por solape de extractos** (BT, round_facturacion/3): los extractos
+  Santander stmt4 (10-mar→05-jun) y stmt5 (06-abr→01-jul) solapaban 06-abr→05-jun →
+  **176 movimientos duplicados** (uno en cada extracto). Además, al conciliar las
+  liquidaciones TPV se habían conciliado AMBAS copias → doble conteo en 572001/430000.
+  **Fix**: borradas **175 copias** (conservando siempre la casada contra factura; queda
+  1 par con ambas casadas, revisar a mano). Script de dedup con dry-run + backup
+  `/root/backup_round_facturacion_pre_dedup_*.sql.gz`. **Prevención pendiente**: el
+  `bank_importer` debería detectar solape y saltar líneas ya existentes (idempotencia por
+  línea, no solo por extracto — hoy BNK11 solo cubre reimportar el mismo extracto).
+- **Nóminas con "otras deducciones" (anticipos/embargos)**: la validación
+  `devengo − IRPF − SS − especie = líquido` fallaba cuando había un anticipo (junio: Hugo
+  Ponce, 113,16 €). **Fix** en los 3 pipelines: prompt + `_validate` capturan
+  `otras_deducciones[_total]`; `nomina_processor` (bt_round) añade línea **CR 460000
+  (Salary advances)** y resta las otras deducciones del cuadre. Junio contabilizado
+  (asiento 4819, cuadra). NOTA: la extracción de nóminas NO se "entrena" — la lee la IA
+  de cero cada vez; lo aprendido son reglas de banco/VAT.
+- **"Motivo desconocido" en rechazados web**: la web leía solo `/tmp/extractor_runs_austral`
+  y cararjfam/bt_round colisionaban en `/tmp/extractor_runs`. **Fix**: cada pipeline escribe
+  a `/tmp/extractor_runs_<clave>` y la web mapea `pipeline_dir → runs dir`.
+- Backups de ficheros tocados: `*.bak_otras`, `*.bak_runs`, `nomina_processor.py.bak_accum`.
+
+---
+
+Fin sección 29.
