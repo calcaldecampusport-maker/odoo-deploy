@@ -1624,6 +1624,21 @@ Fin sección 28.
   documentos): **SEPA pain.001 salientes** ×2 (`S0000374.XML`, `pago nominas.XML` = órdenes
   de pago de nóminas/proveedores ya contabilizados), notas manuscritas CAJA EUROS/VIAJE ×7,
   diarios de venta `Diariofacturación*.xlsx` ×2 (`NO_ES_BANCO`, no deberían entrar al pending).
+  - **403 Drive al descargar en la web (BT)**: era PREVIO al redeploy+restart de rechazados.py
+    (12:34). El SA `/etc/automation_sa.json` (mismo que usa el web) SÍ lee metadata+contenido
+    del fichero BT y el check `_rech()` de la empresa BT (id 3, folder `1_OzP…`) pasa →
+    resuelto al recargar. No había peticiones fallidas en el access log tras el restart.
+  - **"Motivo desconocido" (rechazos antiguos)**: los runs por-día en `/tmp` se purgan/rotan,
+    así que rechazos viejos perdían el motivo. **Fix** `rechazados.py`: `_load_recent_reasons`
+    ahora hace fallback al `extractor.log` persistente del pipeline (`LOG_BY_PIPELINE` +
+    `_load_reasons_from_log`, parsea las líneas `{"summary":…}`). Recupera los 3 motivos BT.
+    Commit `austral-contab-web@d0fa9a7`, servicio reiniciado.
+  - **BUG: `_process_sepa` llamaba a `sepa_xml_importer.py` inexistente** (en los 3 pipelines)
+    → crash `can't open file` para cualquier XML SEPA. **Fix**: si el script no existe, se
+    rechaza con motivo claro inspeccionando el tipo pain (`pain.001`=orden pago saliente,
+    `pain.008`=remesa adeudos) — "no es documento contable, se concilia en el extracto". No
+    se contabilizan: son la ejecución en banco de facturas/nóminas ya asentadas. Backups
+    `extractor.py.bak_sepa` (VPS; los pipelines no tienen mirror git local).
 - **Nóminas con "otras deducciones" (anticipos/embargos)**: la validación
   `devengo − IRPF − SS − especie = líquido` fallaba cuando había un anticipo (junio: Hugo
   Ponce, 113,16 €). **Fix** en los 3 pipelines: prompt + `_validate` capturan
