@@ -1654,3 +1654,50 @@ Fin sección 28.
 ---
 
 Fin sección 29.
+
+## 30. BT: banco triplicado, cuentas 410NNN por proveedor, facturas 0€ (2026-07-05)
+
+Auditoría de proveedores en BEST TRAINING (round_facturacion/3) disparada porque
+"Saldos proveedores" de la web mostraba a NATJEVEP con −26.117,14 € y todas las
+facturas "No pagado" pese a estar pagadas en el extracto.
+
+- **Causa raíz — banco TRIPLICADO**: el 2026-06-06 se importó el histórico bancario
+  DOS veces como asientos sueltos (`entry`, sin línea de extracto): 319 en el diario
+  `BNSEP` (Banco SEPA) + 310 en `MISC` (Miscellaneous) = **314 pares idénticos,
+  160.623,12 €**. Encima, 101 de esos movimientos coincidían con líneas de extracto
+  stmt4/5 → triple conteo mar→jun. 410000 llegó a +33.218,82 DEUDOR.
+- **Fix**: backup `/root/backup_round_facturacion_pre_banklimpia_2026-07-05_*.sql.gz` +
+  borrados los **602 asientos** entry de BNSEP/MISC con línea 572001/572002 y sin
+  statement_line (3 requerían desconciliar antes). NO se tocaron: asientos de nómina
+  mensuales (MISC sin 572), PBNSEP (cobros de clientes), extractos. Tras limpiar:
+  410000 → −12.048,50 (acreedor ✓), 572001 → +14.567,04.
+- **Cuenta por proveedor (regla nueva BT)**: creadas **56 cuentas 410NNN**
+  (`410001..410056`, liability_payable, reconcile, nombre=proveedor) + set
+  `property_account_payable_id` per partner (company 3) + **179 apuntes migrados**
+  de 410000 a la cuenta de su tercero. `process_invoice.py` (bt_round) parcheado:
+  `_ensure_supplier_payable_account()` autocrea la 410NNN al dar de alta proveedor
+  nuevo (backup `.bak_payable`). En 410000 solo quedan ~14 apuntes sin tercero
+  (impuestos IS/IRPF/TGSS mal ruteados + 2 líneas demo Odoo) → recolocar en la
+  fase de conciliación.
+- **41 facturas proveedor a 0 €** (posted, creadas también el 06-jun, con PDF adjunto
+  40/41): PDFs exportados a `/var/tmp/zero_reextract/`, borradas las 41 y re-extraídas
+  con `extractor.py --local-file` (ya con cuentas per-supplier). La única sin PDF:
+  Petroprix ref `269000530042` (re-subir el PDF).
+- **Pendiente al subir el extracto ene→9-mar** (usuario lo tiene): importar (la
+  prevención de solape §29 lo hace seguro), rutear, conciliar pagos↔facturas por
+  proveedor, corregir partner "Bio Sensor Group" (pago 10.784,04 estaba mal atribuido
+  a NATJEVEP), y rutear pagos de nómina a 465001-465006 por empleado (hoy van a
+  465000 genérica).
+- **Mismo patrón en las otras empresas**: CARARJFAM → sin asientos-banco duplicados
+  ni facturas 0€; solo **4 líneas de extracto duplicadas por solape** stmt2/stmt5
+  (TGSS 722,89 + nóminas 2.000/3.000 + alquiler 80) → borradas las copias de stmt5
+  (backup `/root/backup_cararjfam_pre_dedup2_*.sql.gz`). Las 2 transferencias Bio
+  Sensors 12.662,65 del mismo día son REALES (el balance del extracto cuadra exacto
+  con ambas). AUSTRAL → limpio del patrón BT (OV/LIQ son diarios de importación por
+  diseño; sus repeticiones −1,57 son comisiones de remesa legítimas del mismo día);
+  ojo aparte: 8 cuentas 400xxx con saldo deudor >1.000 (top `400060512` +68.347,98)
+  = probable falta de facturas de compra por subir, NO duplicados.
+
+---
+
+Fin sección 30.
