@@ -1596,11 +1596,20 @@ Fin sección 28.
   Santander stmt4 (10-mar→05-jun) y stmt5 (06-abr→01-jul) solapaban 06-abr→05-jun →
   **176 movimientos duplicados** (uno en cada extracto). Además, al conciliar las
   liquidaciones TPV se habían conciliado AMBAS copias → doble conteo en 572001/430000.
-  **Fix**: borradas **175 copias** (conservando siempre la casada contra factura; queda
-  1 par con ambas casadas, revisar a mano). Script de dedup con dry-run + backup
-  `/root/backup_round_facturacion_pre_dedup_*.sql.gz`. **Prevención pendiente**: el
-  `bank_importer` debería detectar solape y saltar líneas ya existentes (idempotencia por
-  línea, no solo por extracto — hoy BNK11 solo cubre reimportar el mismo extracto).
+  **Fix**: borradas **175 copias** (conservando siempre la casada contra factura). Script
+  de dedup con dry-run + backup `/root/backup_round_facturacion_pre_dedup_*.sql.gz`.
+  - **SGAE −205,99 €** aparecía 2 veces (16-jun id 291 / 17-jun id 285, refs Bbfjxdx/Bbfjxjb),
+    ambas sin conciliar; solo un cargo era real → **borrada la del 17-jun (id 285)**, queda la 291.
+  - El "1 par con ambas casadas" resultó ser **O2 Fibra 07-abr −50 € NO duplicado**: cada
+    línea está casada contra una **factura O2 distinta** (OM4VACJ0020902 y OM4VABJ0036392),
+    dos recibos reales. Se deja como está.
+  - **Prevención de solape IMPLEMENTADA** (jul 2026) en los 3 `bank_importer.py`: antes de
+    crear el statement se calcula un **multiset** de las líneas ya existentes en ese
+    journal dentro del rango `[min,max]` de fechas (clave = fecha+importe+concepto[:120]) y
+    se descartan los movimientos ya importados; solo se crean los nuevos (respeta
+    repeticiones legítimas el mismo día por conteo). Si todo está ya importado → `duplicate`.
+    `balance_start` se recalcula coherente con el subconjunto realmente insertado. Backups
+    `bank_importer.py.bak_dedup`. (Antes BNK11 solo cubría reimportar el MISMO extracto entero.)
 - **Nóminas con "otras deducciones" (anticipos/embargos)**: la validación
   `devengo − IRPF − SS − especie = líquido` fallaba cuando había un anticipo (junio: Hugo
   Ponce, 113,16 €). **Fix** en los 3 pipelines: prompt + `_validate` capturan
