@@ -1681,8 +1681,12 @@ facturas "No pagado" pese a estar pagadas en el extracto.
   fase de conciliación.
 - **41 facturas proveedor a 0 €** (posted, creadas también el 06-jun, con PDF adjunto
   40/41): PDFs exportados a `/var/tmp/zero_reextract/`, borradas las 41 y re-extraídas
-  con `extractor.py --local-file` (ya con cuentas per-supplier). La única sin PDF:
-  Petroprix ref `269000530042` (re-subir el PDF).
+  con `extractor.py --local-file` (ya con cuentas per-supplier). Resultado: **40/40 OK**
+  (37 posted directas 6.977,97 € + 3 en draft por "total mismatch" revisadas a mano y
+  posteadas: China City 13,50 ✓ coherente; Viajes ECI 200,00 tarjeta regalo 0% IVA ✓;
+  Petroprix 30,00 corregido IVA 10%→**21%** base 24,79). La única sin PDF:
+  Petroprix ref `269000530042` (re-subir el PDF). NATJEVEP recuperó NAT2026/37 y
+  NAT2026/44 (2.274,53 c/u) en su cuenta 410037. Total 410* final: −19.026,47 (acreedor).
 - **Pendiente al subir el extracto ene→9-mar** (usuario lo tiene): importar (la
   prevención de solape §29 lo hace seguro), rutear, conciliar pagos↔facturas por
   proveedor, corregir partner "Bio Sensor Group" (pago 10.784,04 estaba mal atribuido
