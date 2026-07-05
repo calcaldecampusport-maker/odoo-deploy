@@ -1610,6 +1610,20 @@ Fin sección 28.
     repeticiones legítimas el mismo día por conteo). Si todo está ya importado → `duplicate`.
     `balance_start` se recalcula coherente con el subconjunto realmente insertado. Backups
     `bank_importer.py.bak_dedup`. (Antes BNK11 solo cubría reimportar el MISMO extracto entero.)
+    **Validado en producción (2026-07-05)**: reprocesado un `.xls` rechazado de cararjfam
+    (`Movimientos_cuenta_0279388`, 80 mov) → `dedup: 71 ya importados, 9 nuevos` → statement 6
+    (Banco La Caixa, 9 líneas 01–16 mar) sin duplicar las 71 preexistentes.
+- **Repaso de rechazados 3 empresas (2026-07-05)**: 17 docs. Ninguno era fallo de la IA.
+  Recuperables por infra ya arreglada: extractos bancarios (cararjfam `.xls` re-importado ↑;
+  BT `MovimientosCuenta` quedó como **PDF 8 pág** → `bank_importer` no parsea PDF, necesita
+  xlsx/csv/N43; el suspense del diario Santander ya está puesto → importará al re-subir en
+  formato máquina). Requieren decisión humana: AUSTRAL `4951.pdf` (**descuadre PROPIO del
+  proveedor**: líneas 10.869,30 vs base declarada 10.269,30; su IVA/total cuadran con
+  10.269,30 → contabilizar por totales declarados), BT `noiminas mayo` (nombre avisa de pago
+  erróneo de abril), cararjfam `Foto.pdf` (ticket sin CIF). Correctamente rechazados (no
+  documentos): **SEPA pain.001 salientes** ×2 (`S0000374.XML`, `pago nominas.XML` = órdenes
+  de pago de nóminas/proveedores ya contabilizados), notas manuscritas CAJA EUROS/VIAJE ×7,
+  diarios de venta `Diariofacturación*.xlsx` ×2 (`NO_ES_BANCO`, no deberían entrar al pending).
 - **Nóminas con "otras deducciones" (anticipos/embargos)**: la validación
   `devengo − IRPF − SS − especie = líquido` fallaba cuando había un anticipo (junio: Hugo
   Ponce, 113,16 €). **Fix** en los 3 pipelines: prompt + `_validate` capturan
