@@ -1702,6 +1702,42 @@ facturas "No pagado" pese a estar pagadas en el extracto.
   ojo aparte: 8 cuentas 400xxx con saldo deudor >1.000 (top `400060512` +68.347,98)
   = probable falta de facturas de compra por subir, NO duplicados.
 
+- **Extracto ene→mar importado (2026-07-06/07)**: xlsx Santander con 300 movimientos →
+  el anti-solape descartó 99 ya presentes e importó **201 nuevos** (stmt 6, 05-ene→09-mar).
+- **2ª tanda de corrupción descubierta**: las **55 facturas supervivientes** del import
+  06-jun tenían los computados almacenados rotos (`amount_untaxed=0`); cualquier write
+  (p.ej. conciliar) re-sincronizaba las líneas desde esos valores y **vaciaba la factura
+  a 0** (detonaron 7 antes de detectarlo). **Fix**: backup
+  `/root/backup_round_facturacion_pre_reextract55_*.sql.gz`, borradas las 55 → 49
+  re-extraídas del PDF + 2 eran duplicados reales (mismo md5: el import 06-jun duplicó
+  un Easygas) + 4 manuales (2 Bricoman 123,48/181,00; Securitas 56,57; Leroy 113,24)
+  + 3 drafts Easygas corruptos re-extraídos. Resultado: **0 facturas a 0, 0 corruptas**.
+- **Conciliación bancaria BT (proveedores)**: reglas tóxicas desactivadas (id 9
+  'TRANSFERENCIA FAVOR'→625000 cajón de sastre; id 8 CREUSET→520000); regla 24 remesas
+  nómina → 465000 (antes ¡430000 clientes!); reglas de proveedor reapuntadas de 410000 a
+  la **410NNN propia** de cada partner; nuevas reglas fiscales (TGSS→476000,
+  IVA autoliq→475000, Retenciones→475100, IS→473000, Natinver→410037, Bio Sensor→410058,
+  Adgentis→410057). Cuentas 475000/473000 creadas. Partners nuevos: ADGENTIS (410057),
+  BIO SENSOR GROUP SUIT (410058). 13 líneas mal ruteadas a 625000 recolocadas
+  (4 alquileres NATJEVEP, Howden, Deporocio, J.Hidalgo, GymCompany, Etenon…).
+  Conciliado: **NATJEVEP 6/6 pagadas**, nóminas por empleado (6, por nombre), ANTEA,
+  Securitas, Acciona, IKEA, Mercadona, INTHER, Menaje, Petroprix, Viajes, Howden…
+  27/105 facturas full-paid; el resto abiertas legítimamente.
+- ⚠️ **LECCIÓN (conciliar líneas de extracto por script)**: si la contrapartida de una
+  `bank.statement.line` se recoloca por **SQL** y luego se hace `(d+c).reconcile()`, la
+  sincronización interna del statement descarta el partial al flush (parece conciliado y
+  se deshace). **Camino correcto**: ciclo ORM — `write` de la contrapartida a la cuenta
+  suspense y `bank_reconciler.reconcile_pair(env, stmt_line, aml)` (escribe
+  suspense→destino por ORM y reconcilia). Verificar SIEMPRE la persistencia desde un
+  proceso nuevo.
+- **Pendientes que requieren documentos del usuario**: factura de BIO SENSOR (pago
+  10.784,04 abierto en 410058), factura alquiler dic-2025 NATJEVEP (pago 2.208,29),
+  facturas gestoría ADGENTIS (799,35), factura Howden mar (293,94), PDF Petroprix
+  `269000530042`. Sin mapear en banco (~94 líneas suspense 4.062 €): Concepción Arjona
+  112,50, Friking 170, OMB 941,92, Le Creuset 563,50, initial balance 5.103, demo Odoo.
+- Saldos finales BT: 410* abierto +7.485,70 (pagos sin factura menos facturas sin pago),
+  572001 = 15.838,07, suspense 572998 = 4.062,00.
+
 ---
 
 Fin sección 30.
