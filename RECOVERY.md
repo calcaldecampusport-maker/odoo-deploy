@@ -1734,6 +1734,15 @@ facturas "No pagado" pese a estar pagadas en el extracto.
   obsoleto (0 si venía de cuenta no conciliable) y el apunte "desaparece" de los
   detalles de saldo y de los matchers (caso Jose Hidalgo 2.862, 2026-07-07: pago
   invisible al expandir saldos; 5 líneas corregidas con UPDATE residual=balance).
+- **Retención IRPF en facturas de proveedor (2026-07-07)**: BT/cararjfam NO soportaban
+  retenciones en facturas (solo austral). Caso: MISC/2026/05/0022 Jose Hidalgo (26/0001)
+  contabilizada 2.700+567=3.267 sin la retención 15% (405) → banco pagó 2.862 y no casaba.
+  **Fix factura**: draft + añadir impuesto `15% WHI` (l10n_es, id 298) → 475100 H 405,
+  total 2.862, conciliada con su pago (paid). **Fix pipeline**: portada la lógica de
+  austral a bt_round y cararjfam (`extractor.py`: campos `irpf_rate`/`irpf_amount` +
+  inferencia determinista del tipo por descuadre 19/15/7/2/1% + validación
+  `sub+tax−irpf=total`; `process_invoice.py`: `find_irpf_tax` busca el impuesto negativo
+  de la localización `NN% WHI` y lo aplica a las líneas). Backups `*.bak_irpf`.
 - **Pendientes que requieren documentos del usuario**: factura de BIO SENSOR (pago
   10.784,04 abierto en 410058), factura alquiler dic-2025 NATJEVEP (pago 2.208,29),
   facturas gestoría ADGENTIS (799,35), factura Howden mar (293,94), PDF Petroprix
