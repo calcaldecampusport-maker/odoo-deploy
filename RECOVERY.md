@@ -1729,7 +1729,11 @@ facturas "No pagado" pese a estar pagadas en el extracto.
   se deshace). **Camino correcto**: ciclo ORM — `write` de la contrapartida a la cuenta
   suspense y `bank_reconciler.reconcile_pair(env, stmt_line, aml)` (escribe
   suspense→destino por ORM y reconcilia). Verificar SIEMPRE la persistencia desde un
-  proceso nuevo.
+  proceso nuevo. Y si se recoloca una línea por SQL, **recalcular también
+  `amount_residual` (= balance si no hay partials)**: el residual guardado queda
+  obsoleto (0 si venía de cuenta no conciliable) y el apunte "desaparece" de los
+  detalles de saldo y de los matchers (caso Jose Hidalgo 2.862, 2026-07-07: pago
+  invisible al expandir saldos; 5 líneas corregidas con UPDATE residual=balance).
 - **Pendientes que requieren documentos del usuario**: factura de BIO SENSOR (pago
   10.784,04 abierto en 410058), factura alquiler dic-2025 NATJEVEP (pago 2.208,29),
   facturas gestoría ADGENTIS (799,35), factura Howden mar (293,94), PDF Petroprix
