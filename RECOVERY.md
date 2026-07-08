@@ -1846,3 +1846,15 @@ Backup: `/root/backup_cararjfam_pre_renum_2026-07-08_*.sql.gz`.
 ---
 
 Fin sección 32.
+
+### §31-bis — Nóminas febrero BT completadas (2026-07-08)
+
+- El PDF completo de feb (7 nóminas, 5 empleados; Hugo M.C. con 3 tramos por
+  cambios de contrato) se ACUMULÓ sobre el asiento parcial existente
+  MISC/2026/02/0001. La parte vieja (Hugo 650,83/591,43, lectura errónea de una
+  extracción anterior) quedaba duplicada → **eliminadas esas 4 líneas** (draft +
+  unlink de líneas + repost). Resultado: bruto 6.777,93 + SS empresa 2.304,85;
+  líquidos 5.943,85. Cuentas por empleado nuevas: 465007 Franco, 465008 Luque.
+- **Remesa mar-2 (6.033,01) conciliada vía asiento puente** MISC/2026/03/0002
+  (patrón: H 465000 = remesa; D 465xxx por empleado = líquidos; el descuadre
+  **+89,16 queda en línea D 465000 "pendiente de aclarar"**). Franco y Luque a 0.
