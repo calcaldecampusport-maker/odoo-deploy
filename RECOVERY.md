@@ -1791,6 +1791,17 @@ por tercero y columna CIF). Copia permanente en
   parchear round_config_api —odoo_cuotas, POS sync, provisioner— y los
   pipelines; solo si la asesoría lo exige de verdad).
 
+- **Asiento de apertura 2025 contabilizado (2026-07-08)**: `BEST ASIENTO DE APERTURA
+  2025.xlsx` (Sage, 56 líneas, 257.565,30 D=H) → **MISC/2025/01/0001** con fecha
+  01-01-2025, ref "Asiento de apertura ejercicio 2025 (migración Sage)". Mapeo:
+  terceros a sus subcuentas renumeradas (con partner_id via property), control 8→6
+  dígitos (43000000→430000, 47510000→475100, 57000000→570000…). Creadas 4 cuentas:
+  21200001 (loseta/tatami), 43150001 (ef. impagados), 47510002, 57200001 (banco
+  legacy sin identificar — NO se fusionó con 572001 Santander a propósito).
+  ⚠️ PENDIENTE: Odoo no tiene los movimientos de 2025 (solo dic-2025 en adelante);
+  hasta cargar el diario 2025 o el cierre-2025/apertura-2026, los saldos intermedios
+  (banco, clientes 73.925,68…) no enlazan con la realidad de 2026.
+
 ---
 
 Fin sección 31.
