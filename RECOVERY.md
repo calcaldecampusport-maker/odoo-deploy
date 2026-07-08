@@ -1754,3 +1754,43 @@ facturas "No pagado" pese a estar pagadas en el extracto.
 ---
 
 Fin sección 30.
+
+## 31. BT: renumeración de subcuentas de tercero al plan legacy 8 dígitos (2026-07-08)
+
+El usuario subió el plan de cuentas del software antiguo de BEST TRAINING
+(`BEST PLAN DE CUENTAS.xlsx`, 836 cuentas, formato Sage 8 dígitos con subcuenta
+por tercero y columna CIF). Copia permanente en
+`/opt/automation_bt_round/BEST_PLAN_DE_CUENTAS.xlsx` + mapeo aplicado en
+`renum_mapping_2026-07-08.json`. Backup previo:
+`/root/backup_round_facturacion_pre_renum_2026-07-08_*.sql.gz`.
+
+- **DECISIÓN DE ALCANCE**: se renumeran SOLO las subcuentas de tercero
+  (proveedores/acreedores 400000NN/410000NN). Las cuentas de control (410000,
+  430000, 572001, 700000, 475100…) se quedan en 6 dígitos porque **company 3 la
+  comparte la facturación del gimnasio (round_config_api: cuotas/TPV/PBNSEP)**
+  que busca cuentas por código literal — renumerarlas rompería producción.
+  Mismo criterio en los reports web (filtran por prefijo `410%`, que casa con
+  ambas longitudes).
+- **Aplicado**: 34 cuentas renumeradas a su código legacy exacto (30 por CIF +
+  4 a mano: Acciona→41000006 con errata/CIF viejo en el plan,
+  Bio Sensor→41000043, Dealz/Pepco→41000068, Etenon→40000003 que en el plan es
+  proveedor de mercancías). 13 proveedores nuestros sin subcuenta legacy →
+  secuencia continuada 41000071-41000083. Demo/test/legacy-USA → rango
+  aparcamiento 41000901-905. **11 cuentas 0-movimientos borradas** (9 de
+  empleados —su flujo va por 465xxx—, Endesa sin uso, Pepco duplicada).
+- **Sembrados los 41 proveedores restantes del plan** que aún no existían en
+  Odoo: partner con CIF + su cuenta reservada con el número de siempre
+  (SGAE 41000035, Valora 41000012, Datcon 41000014, Karcher 41000041,
+  FNMT 41000044, Friking 41000049…) → sus futuras facturas caen solas en su
+  número histórico. VATs rellenados de paso: Adgentis, Bio Sensor, Dealz.
+- **Auto-creación adaptada** (proveedor nuevo → siguiente 8 dígitos <41000900):
+  `process_invoice._ensure_supplier_payable_account` (`.bak_renum`) y
+  `conciliacion_ops.cmd_partner_account` (`.bak_renum`; conserva rama Sage
+  9 dígitos para austral y 410NNN para planes de 6).
+- Pendiente opcional: pase completo a 8 dígitos de TODO el plan (requeriría
+  parchear round_config_api —odoo_cuotas, POS sync, provisioner— y los
+  pipelines; solo si la asesoría lo exige de verdad).
+
+---
+
+Fin sección 31.
