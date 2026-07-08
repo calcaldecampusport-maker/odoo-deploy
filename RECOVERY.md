@@ -1813,3 +1813,36 @@ por tercero y columna CIF). Copia permanente en
 ---
 
 Fin sección 31.
+
+## 32. CARARJFAM: plan legacy 8 dígitos + asiento de apertura 2026 (2026-07-08)
+
+Mismo proceso que BT (§31) sobre BD `cararjfam` company 1. Ficheros en
+`/opt/automation/CARARJFAM_PLAN_DE_CUENTAS.xlsx` y `CARARJFAM_ASIENTO_APERTURA_2026.xlsx`.
+Backup: `/root/backup_cararjfam_pre_renum_2026-07-08_*.sql.gz`.
+
+- **Diferencia clave con BT**: el plan de CARARJFAM viene **SIN CIFs** (158/160
+  subcuentas sin NIF) y la actividad antigua era otra (asesoría/registros) →
+  solape real de proveedores ≈ 0 (verificado: 0 duplicados por nombre).
+- **Aplicado**: 2 casados por nombre a su código legacy; los **70 proveedores
+  actuales** → secuencia nueva **41000100+** (los números legacy quedan
+  reservados para sus dueños); **158 subcuentas del plan sembradas** (partner +
+  cuenta + property; las 430000NN como receivable). 50 apuntes migrados de la
+  410000 genérica a la subcuenta de su tercero.
+- **Apertura 2026**: `Vario/2026/01/0002`, fecha 01-01-2026 (fichero Sage dice
+  "Ejercicio 2025"/01-01-2025 pero es el convenio del ejercicio que CIERRA — el
+  usuario confirmó 2026), 14 líneas, **361.893,70 D=H**. Mapeo 8→6 dígitos;
+  57200001→572001 (La Caixa), 57000000→570001 (caja viva); creada 21100001
+  "INM. AVDA. DE LA LUZ 25 2º" (asset_fixed, 150.120).
+- **Solape dic-2025 eliminado**: la nómina dic estaba asentada DOS veces (entry
+  Vario/2025/12/0001 7.719,51 + como factura FACTU/2025/12/0001 3.022,28 contra
+  41000140) y la apertura da los sueldos pendientes a 31-12 en 0,09 € (Sage las
+  daba por pagadas) → ambas borradas (estaban sin conciliar).
+- **Pipeline**: `process_invoice.py` de cararjfam parcheado con
+  `_ensure_supplier_payable_account` (numeración 8 dígitos, `.bak_payable`).
+  `conciliacion_ops.cmd_partner_account` ya soportaba 8 dígitos (§31).
+- Saldos post-proceso: 572001=76.279,25 · 430000=59.221,44 · 465000=−11.089,21 ·
+  410000 genérica=−774,73 · 475100=−2.851,26.
+
+---
+
+Fin sección 32.
