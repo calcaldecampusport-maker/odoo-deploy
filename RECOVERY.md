@@ -1889,3 +1889,24 @@ por encima del extracto desde el día 0.
 ---
 
 Fin sección 33.
+
+### §33-bis — Auditoría PDF extracto abr→jul BT: SGAE restaurada + O2 fantasma (2026-07-09)
+
+Usuario detectó que el extracto ORIGINAL tiene DOS recibos SGAE (16/06 Bbfjxdx y
+17/06 Bbfjxjb) → el borrado del 05-jul (§29, "solo un cargo era real") fue un
+ERROR de diagnóstico humano+IA. Auditoría completa del PDF original
+(rechazadas Drive `1NwHx9...`, 229 mov 06-abr→01-jul) contra Odoo:
+- **Faltaba SOLO la SGAE 17-jun** → restaurada (line 692, stmt5) y ruteada a
+  41000035. No hay más movimientos perdidos.
+- **O2 07-abr −50: el banco real solo tiene UNO** — los dos que se conservaron
+  en el dedup del solape ("ambos casados a facturas distintas" §30) eran copias
+  stmt4/stmt5 del MISMO cargo. Borrada la copia (line 481), factura feb
+  OM4VABJ0036392 liberada. Además su pago real (recibo 04-mar, line 509) estaba
+  MAL ruteado a 430000 y casado contra otra línea de banco (matching absurdo
+  pre-filtro-de-dirección) → re-ruteado a 41000019 y casado: feb `paid`.
+- 3 movimientos de Odoo del 01-jul (−6.056,70/+112,50/+278,00) no salen en el
+  PDF (snapshot 13:20) → PENDIENTE confirmar con el próximo extracto.
+- LECCIÓN: ante "duplicados" con refs distintas (Bbfjxdx vs Bbfjxjb), la ref
+  DISTINTA = recibos DISTINTOS; y "cada copia casada a factura distinta" NO
+  prueba que ambas sean reales (el matcher pudo casar la copia). La fuente de
+  verdad es el fichero original del banco.
