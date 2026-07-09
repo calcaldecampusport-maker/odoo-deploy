@@ -1858,3 +1858,34 @@ Fin sección 32.
 - **Remesa mar-2 (6.033,01) conciliada vía asiento puente** MISC/2026/03/0002
   (patrón: H 465000 = remesa; D 465xxx por empleado = líquidos; el descuadre
   **+89,16 queda en línea D 465000 "pendiente de aclarar"**). Franco y Luque a 0.
+
+## 33. BT: purga de datos DEMO de Odoo que falseaban el banco (2026-07-09)
+
+Síntoma usuario: "el saldo del banco no coincide con el extracto desde el inicio".
+Causa: la BD Odoo de BT se creó CON datos de demostración. Partners demo
+`Azure Interior` (base.res_partner_12) y `Acme Corporation` (base.res_partner_2)
++ 7 apuntes de banco demo `BNK1/2026/00001-00007` fechados 01-01-2026
+(Initial balance 5.103, Bank Fees, Last Year Interests, Prepayment, "First
+2.000€ of invoice"…) + facturas/abonos demo enormes de números redondos
+(INV/RINV a Acme/Azure por 31.750/41.750/19.250…). Metían **9.944,87 € falsos
+en 572001** con fecha 1-ene, antes del primer movimiento real → el libro iba
+por encima del extracto desde el día 0.
+- **Fix**: backup `/root/backup_round_facturacion_pre_demopurge_2026-07-09_*.sql.gz`
+  + borrados **22 moves demo** (partner Azure/Acme O name `BNK1/2026/0000x`) +
+  Azure/Acme archivados. GUARD: un apunte demo (Prepayment 650) estaba
+  conciliado con una línea REAL del banco (BNK1/2026/00024) por un mal match del
+  reconciliador → se **desconció primero**, liberando 15 apuntes reales
+  (4 líneas de banco + 11 facturas de cuota INV/2026/003xx-004xx) que vuelven a
+  pendientes de conciliar (su "pago" era el demo, falso).
+- **OJO secuencia BNK1 compartida**: las líneas de extracto REALES importadas
+  también usan la secuencia `BNK1/2026/000NN` (números altos, 00008+); las demo
+  son SOLO 00001-00007. Filtrar por `0000x` (una cifra) o por partner demo.
+- Resultado: 572001 Santander de 51.460,10 → **41.515,23**, arrancando en la
+  apertura (35.622,03 el 01-01-2026) y encadenando con los movimientos reales.
+  0 apuntes Azure/Acme, 0 BNK1 demo.
+- PENDIENTE: mismo saneo en CARARJFAM (company 1) y AUSTRAL (company 4) — Azure/
+  Acme aparecían también en sus borradores.
+
+---
+
+Fin sección 33.
