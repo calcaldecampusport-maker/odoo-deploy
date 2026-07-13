@@ -1948,3 +1948,18 @@ round_facturacion/3 contiene todo.
 **BT (round_facturacion/3) NO se toca**: sus clientes (socios del gimnasio)
 van a la 430000 por diseño — es cuenta de control compartida con la
 plataforma Round (round_config_api). Ver regla en CLAUDE.md del repo round.
+
+**Actualización 2026-07-13 (mismo día, más tarde)**: la company 2 legacy fue
+PURGADA por completo con autorización del usuario ("la nueva BD está
+funcionando correctamente"). Script `/tmp/purgar_company2_cararjfam.py`
+(3 pases): 104 attachments, 77 partial_reconciles, 650 moves, 2 statements,
+7 journals, 167 taxes + 32 tax groups, 29 posiciones fiscales, 930 account
+groups, 635 cuentas, secuencias/properties/calendar y `res.company` 2
+eliminada vía ORM. Backup previo:
+`/root/backup_cararjfam_pre_purga_c2_2026-07-13.sql` (restaurable con
+ESCENARIO 1). En la BD cararjfam solo queda la company 1 CARARJFAM2019.
+Trampas del orden de borrado: partial_reconcile NO es cascade (borrar antes
+que los moves); posiciones fiscales antes que taxes; ir_property antes que
+account_account ("se utiliza en un contacto"); `res_company.resource_calendar_id`
+a NULL antes de borrar el calendario; savepoint por modelo para no abortar
+la transacción.
