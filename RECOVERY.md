@@ -1910,3 +1910,41 @@ ERROR de diagnóstico humano+IA. Auditoría completa del PDF original
   DISTINTA = recibos DISTINTOS; y "cada copia casada a factura distinta" NO
   prueba que ambas sean reales (el matcher pudo casar la copia). La fuente de
   verdad es el fichero original del banco.
+
+## 34. CARARJFAM: clientes/proveedores nuevos caían a 430000/410000 + cron auto-fix (2026-07-13)
+
+**Síntoma**: en la web (saldos clientes, libro mayor, combos de conciliación)
+buscar un cliente por nombre (p.ej. "Bio Sensor") no daba resultados y todos
+los clientes aparecían agrupados en la 430000.
+
+**Causa**: el sembrado del plan legacy (§32) creó las subcuentas de los
+terceros QUE ESTABAN en el plan de Sage (43000001-99 / 410001xx). Los terceros
+NUEVOS posteriores al plan (Medical Cables, Bio Sensors, Deporocio, Wiemspro
+Corp) no tenían property ni subcuenta → sus facturas caían a la genérica.
+La búsqueda por nombre funcionaba bien; simplemente no existía la cuenta.
+
+**Arreglo (2026-07-13)**:
+- Backup previo: `/root/backup_cararjfam_clientes_2026-07-13.sql`.
+- Script `/opt/automation/fix_terceros_cararjfam.py` (idempotente): para cada
+  partner con apuntes en la genérica de cararjfam company 1 crea su subcuenta
+  8 dígitos (siguiente libre 4300xxxxx/4100xxxxx), fija la property y migra
+  TODOS sus apuntes (arrastrando contrapartidas conciliadas sin partner para
+  no romper la conciliación entre cuentas distintas). Los apuntes sin partner
+  NO conciliados (contrapartidas de banco pendientes) se quedan en la genérica.
+- Resultado: 43000100 MEDICAL CABLES, 43000101 BIO SENSORS (25.325,30 se ve ya
+  por nombre), 43000102 DEPOROCIO, 43000103 WIEMSPRO CORP.
+- **Cron nocturno** (crontab de `odoo`, 23:41) ejecuta el script a diario →
+  un cliente/proveedor nuevo que caiga a la genérica se auto-corrige.
+- En 430000 queda SOLO la línea agregada del asiento de apertura 2025
+  (26.948,14, el Excel de Sage ya venía agregado a nivel de control, 14 líneas).
+
+**Hallazgo colateral — companies duplicadas en BD cararjfam**: la BD tiene
+company 1 = CARARJFAM2019 (la que usa la web y el pipeline) y company 2 =
+"BEST TRAINING RINCON DE LA VICTORIA SL." con ~650 asientos dic2025-jun2026:
+es el PRIMER intento de BT antes de moverlo a round_facturacion/3. La web no
+la ve. NO usar; pendiente de archivar/purgar cuando se confirme que
+round_facturacion/3 contiene todo.
+
+**BT (round_facturacion/3) NO se toca**: sus clientes (socios del gimnasio)
+van a la 430000 por diseño — es cuenta de control compartida con la
+plataforma Round (round_config_api). Ver regla en CLAUDE.md del repo round.
