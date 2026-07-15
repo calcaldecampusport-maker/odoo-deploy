@@ -1963,3 +1963,31 @@ que los moves); posiciones fiscales antes que taxes; ir_property antes que
 account_account ("se utiliza en un contacto"); `res_company.resource_calendar_id`
 a NULL antes de borrar el calendario; savepoint por modelo para no abortar
 la transacción.
+
+## 35. Auto-login Odoo desde la web (addon round_autologin) (2026-07-15)
+
+**Síntoma**: los botones "Ver en Odoo ↗" de austral.carajfam.com pedían
+usuario y contraseña (con 3 BDs, la sesión de Odoo solo vale para una).
+
+**Solución**: auto-login por token firmado.
+- **Addon** `/opt/odoo17/custom-addons/round_autologin/` (copia en repo
+  odoo-deploy `addons/round_autologin/`). Ruta `GET /round/autologin?token=
+  <payload_b64>.<hmac_sha256_b64>&redirect=/web%23...` con auth='none'.
+  Payload: `{db, login, exp, aud:'round-autologin'}`. Cargado **server-wide**
+  (`server_wide_modules = base,web,round_autologin` en /etc/odoo17.conf) —
+  NO requiere instalarse en cada BD.
+- **Secreto compartido**: `[round_autologin] secret =` en /etc/odoo17.conf
+  y `AUTOLOGIN_SECRET=` en /opt/austral-contab-web/backend/.env (mismo valor,
+  openssl rand -hex 32). Si el backend no tiene secreto, cae al enlace
+  clásico /web?db= (login manual).
+- **Backend web**: `app/services/odoo_sso.py::odoo_form_url(db, cid, id,
+  model)` — token TTL 8h; logins por BD: round_facturacion→adminround,
+  resto→c.alcalde.campusport@gmail.com (`AUTOLOGIN_DEFAULT_LOGIN`).
+  `_odoo_url` (revision.py) y `_doc_move_url` (reports.py) delegan en él.
+- **TRAMPA técnica (Odoo 17)**: en rutas auth='none' SIN BD asociada, la
+  rotación post-dispatch de la sesión NO recalcula `session_token` (env
+  vacío) → la sesión nace inválida y /web te devuelve al login. Solución en
+  el controller: `http.root.session_store.rotate(session, env(user=uid))` +
+  `session.should_rotate = False` tras `session.finalize(...)`.
+- Token inválido/caducado → redirect a /web/login (fallo cerrado). El
+  redirect solo admite rutas relativas.
