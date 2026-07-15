@@ -1991,3 +1991,31 @@ usuario y contraseña (con 3 BDs, la sesión de Odoo solo vale para una).
   `session.should_rotate = False` tras `session.finalize(...)`.
 - Token inválido/caducado → redirect a /web/login (fallo cerrado). El
   redirect solo admite rutas relativas.
+
+## 36. Reglas de contabilización en el visor de asientos (portado de wiemspro) (2026-07-15)
+
+Sistema de aprendizaje del revisor portado de contab.wiemspro.com a
+austral.carajfam.com, adaptado multi-empresa (austral/cararjfam/bt).
+
+- **Tabla `regla_asiento`** (app.db web): texto + foto opcional, ancla
+  upload_id (estable) + move_id (se relinka al reprocesar), scope
+  'documento' (solo su subida) o 'proveedor' (todas las extracciones de
+  SU empresa; el texto nombra al proveedor). `empresa_id` aísla: una regla
+  proveedor de austral NO se inyecta en cararjfam/bt (verificado).
+- **Endpoints** `/api/documents/reglas` (GET por move_id, POST multipart,
+  GET imagen, DELETE=desactivar) + `POST /reglas/reprocesar`: borra el
+  asiento en Odoo (bridge `--delete-move`: draft+unlink, guard de company
+  y de statement lines) y relanza el extractor sobre el ORIGINAL — subida
+  web (vps_path) o, si vino del cron, el adjunto del FILESTORE de Odoo
+  (se copia a /var/automation_austral/web_uploads/reprocess y se crea el
+  DocumentUpload). Roles admin|accountant.
+- **Extractores ×3** (backups .bak_reglas): `cargar_reglas(company,
+  upload_id)` lee la tabla del app.db (sqlite directo, filtro empresa por
+  VAT), inyecta las reglas en el prompt de `_run_claude` (PRECEDENCE sobre
+  defaults; imágenes de referencia vía --add-dir). Cron = solo proveedor;
+  --local-file con --web-upload-id = documento + proveedor. Fail-safe: si
+  el app.db no está, devuelve [] y no bloquea.
+- **Frontend**: panel "📐 Reglas del asiento" en el visor (InvoiceModal),
+  y en Rechazadas el comentario/foto del reproceso se guarda como regla
+  (subidas web) — el pipeline la aprende para siempre.
+- Imágenes de reglas: /var/automation_austral/reglas (odoo:odoo).
