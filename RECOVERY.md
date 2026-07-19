@@ -2096,3 +2096,17 @@ Los 12 cobros "Transferencia De Gympass Us Llc, Concepto Wellhubg" de 2026
 contra los asientos agregados WELLHUB). Sin partials (swap limpio). La regla
 existente id 1 `TRANSFERENCIA GYMPASS` actualizada de 430000 → **430001** +
 partner, así los próximos cobros van solos a su cuenta.
+
+## 42. BT: recibos Costa Luz Multiclean mal ruteados + regla generalizada (2026-07-19)
+
+De los 4 recibos bancarios de COSTA LUZ MULTICLEAN SL. (limpieza), abr
+(−886,99) estaba en 430000 y jun (−768,35) en 41000008 (¡MERCADONA!) casado
+falsamente con 20,51 de un asiento suyo (partial 749) → deshecho, residual
+de Mercadona recomputado, y ambos movidos a **41000080** con partner.
+CAUSA RAÍZ: la regla 64 tenía como patrón el concepto COMPLETO de febrero
+("…Facturas Mes De Febrero 2026 H") → solo casaba ese mes. Generalizada a
+`Costa Luz Multiclean` (41000080 + partner, conf 0.95).
+LECCIÓN: al aprender reglas desde un movimiento, el patrón debe ser el
+identificador estable del tercero, no el concepto entero con mes/fecha.
+Costa Luz no sube facturas a Odoo: sus 4 pagos quedan abiertos en su 410
+(estado honesto).
