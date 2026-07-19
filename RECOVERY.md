@@ -2177,3 +2177,25 @@ Sin pago bancario de 123,48. → Fantasma ELIMINADO (bridge --delete-move).
 Además el cobro de la devolución (+181, 26-ene, línea 626) casado contra el
 abono nuevo MISC/2026/01/0117 (ambos residual 0 ✓). Solo queda pendiente
 subir el justificante R220482 de Obramat.
+
+## 46. BT: duplicados de banco/facturas ppios 2026 — auditoría con cuadre de saldos (2026-07-19)
+
+Detección: parejas misma fecha+importe+concepto normalizado + CUADRE
+balance_start+Σlíneas vs balance_end declarado (el árbitro definitivo).
+- **Gym Company −535,50 (23-feb) DUPLICADA en el import** (líneas 535/536 del
+  extracto 6): el extracto NO cuadraba por exactamente −535,50 → el banco
+  solo la cargó UNA vez. Línea 536 (sin casados) eliminada → extracto 6
+  cuadra al céntimo (109.386,95). Cierra el pendiente histórico "Gym Company
+  posible doble cargo".
+- **Fantasma Securitas MISC/2026/02/0116** (ref 2604C01x46053 con "x" de OCR,
+  sin adjunto, lote 06-jul — mismo patrón que Obramat §45): 6 recibos
+  bancarios pero 8 facturas. Eliminada; el pago que absorbía (05-jun, BNK
+  00302) re-casado con la factura real de junio (MISC/2026/06/0009).
+- Duplicados APARENTES pero REALES (sus extractos cuadran): El Corte Inglés
+  −200×2 (26-mar), devoluciones de recibos 52,50/0,24 ×2 (ene) y en cararjfam
+  Bio Sensors +12.662,65 ×2 (26-mar). NO tocar.
+- LECCIÓN: ante posibles duplicados de extracto, el juez es el CUADRE
+  balance_start + Σ importes = balance_end declarado del fichero del banco.
+- PATRÓN CONFIRMADO: el lote de reconstrucción del 06-jul creó facturas
+  fantasma SIN adjunto con refs mal-OCR (Obramat §45, Securitas aquí).
+  Revisar el resto de moves de ese lote con 0 adjuntos.
