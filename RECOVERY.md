@@ -2154,3 +2154,15 @@ ahora exige COHERENCIA con el concepto del banco (backups .bak_harden):
   funcionando por la vía de keywords/partner.
 Verificado en dry-run: BT (3 compras tarjeta pendientes) → 0 casados
 forzados; cararjfam (10 pendientes) → 0; austral (438) → 0.
+
+## 45. BT: devolución Obramat R220482 recreada como abono; justificante NO existe digitalmente (2026-07-19)
+
+MISC/2026/01/0102 (creado 06-jul en la reconstrucción, SIN adjunto) contabilizaba
+la devolución Obramat 008-0001-R220482 (181,00, 24-ene) como in_invoice →
+recreado como **in_refund MISC/2026/01/0117** (600000 H 149,59 / 472000 H
+31,41 / 41000003 D 181,00) y eliminado el erróneo.
+Justificante buscado SIN éxito en: Drive (por nombre y fullText), subidas web
+(document_uploads), archivos y logs del pipeline → nunca se digitalizó.
+PENDIENTE usuario: descargar el abono del área de cliente de Obramat y
+subirlo. También le falta adjunto a MISC/2026/01/0101 (FO078-098-03/0005608,
+123,48, mismo lote).
