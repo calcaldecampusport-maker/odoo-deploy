@@ -2053,3 +2053,22 @@ se conservan). Backup previo: `/root/backup_bt_pre_borrado_tpv_2026-07-19.sql`.
 - Las 12 ventas TPV de prueba enlazadas en round_config (`pos_venta`
   T-2026-00001..00014) quedan con `sync_status='skipped'` y odoo_move_id
   NULL — la venta local se conserva, sin espejo en Odoo.
+
+## 39. BT: cuotas ene-jun 2026 a BORRADOR (sustituidas por asientos agregados) (2026-07-19)
+
+El usuario sustituyó la facturación individual de cuotas del gimnasio por
+asientos agregados mensuales (MISC "CLIENTES GIMNASIO" 430000/477000/700000 y
+"WELLHUB" 430001 nueva/477000/700000, ene-jun 2026, descuadres 1€ del origen
+ajustados en el IVA). Las 526 facturas de cliente ene-jun de la 430000
+(la emisión de cuotas, 28.706,11 €) NO se borraron: **pasadas a borrador**
+(recuperables con action_post, conservan numeración), junto a sus 39 pagos
+Odoo casados (a borrador también para no dejar créditos huérfanos en 430000).
+Backup previo: `/root/backup_bt_pre_borrador_cuotas_2026-07-19.sql`.
+- Julio 2026 (23 facturas) se dejó INTACTO — su agregado aún no existe.
+- Plataforma Round verificada ANTES (petición expresa): el estado de las
+  cuotas vive en `recibo` (round_config) local → recuento por estado idéntico
+  antes/después ✓. El cron round_reconciliacion_recibos detectará "factura no
+  posteada" y mantendrá UNA incidencia resumen por manager (esperado; los
+  enlaces account_move_id se conservan a propósito para poder revertir).
+- Los botones de la plataforma que saltan a la factura Odoo de esos recibos
+  siguen funcionando (la factura existe, en borrador).
