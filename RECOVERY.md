@@ -2166,3 +2166,14 @@ Justificante buscado SIN éxito en: Drive (por nombre y fullText), subidas web
 PENDIENTE usuario: descargar el abono del área de cliente de Obramat y
 subirlo. También le falta adjunto a MISC/2026/01/0101 (FO078-098-03/0005608,
 123,48, mismo lote).
+
+**Ampliación §45 (mismo día)**: MISC/2026/01/0101 "FO078-098-03/0005608"
+(123,48) era un **duplicado FANTASMA**: extracción vieja de "obramat enero 2
+- concepcion arjona.pdf" con OCR deficiente (confianza 0.65, JSON admite
+"subtotal y total inferidos") que malinterpretó el nº y se inventó los
+importes. El papel real es la factura F0018-…/0005668 de 147,33 ya bien
+contabilizada CON adjunto (move 4428) y pagada por banco (−147,33, 02-feb).
+Sin pago bancario de 123,48. → Fantasma ELIMINADO (bridge --delete-move).
+Además el cobro de la devolución (+181, 26-ene, línea 626) casado contra el
+abono nuevo MISC/2026/01/0117 (ambos residual 0 ✓). Solo queda pendiente
+subir el justificante R220482 de Obramat.
