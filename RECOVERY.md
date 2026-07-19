@@ -2138,3 +2138,19 @@ Barrido con 3 detectores (banco↔banco en 430000; partners distintos; pagos a
 - PENDIENTE decisión: el bank_multi_reconciler acumula 3 incidentes de
   casados absurdos (TGSS §37, Costa Luz §42, estos) — candidato a
   deshabilitarse en BT o exigir mismo partner/texto.
+
+## 44. bank_multi_reconciler ENDURECIDO en los 3 pipelines (2026-07-19)
+
+Tras 3 tandas de casados absurdos (§37/§42/§43), el subset-sum por importe
+ahora exige COHERENCIA con el concepto del banco (backups .bak_harden):
+- Cuentas agregadoras con keywords: **475100** (IRPF/AEAT/MODELO 111…),
+  **476000** (TGSS/COTIZACION/SEGURIDAD SOCIAL…), **465000** (NOMINA/REMESA
+  DE TRANSFERENCIAS/SALARIO) → el payment_ref debe contener una keyword.
+- Cuentas de tercero (410x/430x…): el subset debe ser de UN solo partner
+  (no nulo) y un token significativo (≥4 letras, sin S.L./S.A./genéricos)
+  de su nombre debe aparecer en el concepto (normalizado sin acentos).
+- Si el subset por importe no pasa el guard → log "DESCARTADO (incoherente)"
+  y sigue buscando; el caso legítimo (Culligan 1:2, TGSS agregada) sigue
+  funcionando por la vía de keywords/partner.
+Verificado en dry-run: BT (3 compras tarjeta pendientes) → 0 casados
+forzados; cararjfam (10 pendientes) → 0; austral (438) → 0.
