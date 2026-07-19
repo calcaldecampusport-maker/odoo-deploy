@@ -2019,3 +2019,25 @@ austral.carajfam.com, adaptado multi-empresa (austral/cararjfam/bt).
   y en Rechazadas el comentario/foto del reproceso se guarda como regla
   (subidas web) — el pipeline la aprende para siempre.
 - Imágenes de reglas: /var/automation_austral/reglas (odoo:odoo).
+
+## 37. TGSS mal contabilizados en BT + regla TGSS en AUSTRAL (2026-07-19)
+
+Revisión de TODOS los pagos TGSS 2026 en las 3 empresas (backup previo
+`/root/backup_bt_tgss_2026-07-19.sql`):
+- **CARARJFAM**: correctos (476000), reglas ya activas.
+- **BT (round_facturacion c3)**: 2 mal → corregidos a 476000 (aml 10620 y 10464):
+  - 30-abr −2.991,91 estaba en **430000** casado por el multi-conciliador
+    contra 9 apuntes ajenos (4 abonos RINV de −15 y 5 cobros de otros
+    extractos) que sumaban el importe → partials 550-558 eliminados, apuntes
+    liberados con residual recomputado (10428 conserva su otro partial:
+    residual −262,41).
+  - 29-may −2.872,40 estaba en **471000** (deudora) → 476000.
+- **AUSTRAL (cararjfam_test c4)**: la variante "TGSS. COTIZACIÓN" (CON
+  espacio) no casaba con la regla vieja `TGSS.COTIZACION` (sin espacio, y
+  además de la company legacy 1). Línea 538 (−945,00) conciliada a
+  **476000000** (plan 9 dígitos) y **regla nueva id 52**: company 4,
+  patrón `TGSS. COTIZACI`, conf 0.9.
+- LECCIÓN: en cararjfam_test conviven companies legacy 1/2/3 — reglas y
+  cuentas deben ser SIEMPRE de la company 4; una regla de otra company no
+  se aplica (bien) pero confunde al auditar. Y los patrones de regla deben
+  tolerar variantes del banco (con/sin espacio tras "TGSS.").
