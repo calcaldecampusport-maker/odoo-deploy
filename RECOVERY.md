@@ -2072,3 +2072,18 @@ Backup previo: `/root/backup_bt_pre_borrador_cuotas_2026-07-19.sql`.
   enlaces account_move_id se conservan a propósito para poder revertir).
 - Los botones de la plataforma que saltan a la factura Odoo de esos recibos
   siguen funcionando (la factura existe, en borrador).
+
+## 40. BT: remesas de nóminas mal ruteadas a 430000 → 465000 + regla (2026-07-19)
+
+"Remesa De Transferencias" (pago mensual de nóminas) debe ir a **465000**.
+Revisadas las 6 de 2026: mar/abr/jun estaban bien; **may (−6.383,38, línea
+124) y jul (−6.056,70, línea 261) estaban en 430000** → corregidas (residual
+= balance, 465000 es reconciliable). La de mayo además estaba casada por el
+multi-conciliador contra 2 cobros de socios (partials 593/594, BNK 00026
+−5.953,40 y 0,09 de BNK 00020) → deshecho y residuales recomputados.
+- Anti-duplicado verificado: el pago de mayo NO estaba contabilizado por otra
+  vía (465 sin debe en mayo). El MISC/2026/03/0002 NO es duplicado: es el
+  traspaso interno 465000 → subcuentas por trabajador (incl. 89,16 pendiente).
+- **Regla aprendida (id 88, BT c3)**: patrón `Remesa De Transferencias` →
+  465000, conf 0.95. Los cobros SEPA entrantes dicen "Emision Remesa Sepa
+  Sdd" y no casan con el patrón (verificado).
