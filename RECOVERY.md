@@ -2087,3 +2087,12 @@ multi-conciliador contra 2 cobros de socios (partials 593/594, BNK 00026
 - **Regla aprendida (id 88, BT c3)**: patrón `Remesa De Transferencias` →
   465000, conf 0.95. Los cobros SEPA entrantes dicen "Emision Remesa Sepa
   Sdd" y no casan con el patrón (verificado).
+
+## 41. BT: cobros Gympass/Wellhub del banco a la 430001 + regla (2026-07-19)
+
+Los 12 cobros "Transferencia De Gympass Us Llc, Concepto Wellhubg" de 2026
+(ene-jun, −5.735,40 acumulado en haber) estaban ruteados a 430000 → movidos a
+**430001 WELLHUB** con partner Gympass US LLC y residual abierto (para casar
+contra los asientos agregados WELLHUB). Sin partials (swap limpio). La regla
+existente id 1 `TRANSFERENCIA GYMPASS` actualizada de 430000 → **430001** +
+partner, así los próximos cobros van solos a su cuenta.
