@@ -2041,3 +2041,15 @@ Revisión de TODOS los pagos TGSS 2026 en las 3 empresas (backup previo
   cuentas deben ser SIEMPRE de la company 4; una regla de otra company no
   se aplica (bien) pero confunde al auditar. Y los patrones de regla deben
   tolerar variantes del banco (con/sin espacio tras "TGSS.").
+
+## 38. BT: borradas las facturas de cliente del 26-30 may 2026 (pruebas TPV) (2026-07-19)
+
+A petición del usuario (solo BEST TRAINING; las 25 de AUSTRAL del mismo rango
+se conservan). Backup previo: `/root/backup_bt_pre_borrado_tpv_2026-07-19.sql`.
+- Borradas 20 (INV/2026/00007-00020, RINV/2026/00006-00009, TPV-PRUEBA-1,
+  1 borrador y 2 canceladas) vía ORM (button_draft + force_delete + attachments).
+  Sin partials ni payments enlazados (verificado antes; los RINV quedaron
+  libres en §37). 0 apuntes huérfanos tras el borrado.
+- Las 12 ventas TPV de prueba enlazadas en round_config (`pos_venta`
+  T-2026-00001..00014) quedan con `sync_status='skipped'` y odoo_move_id
+  NULL — la venta local se conserva, sin espejo en Odoo.
