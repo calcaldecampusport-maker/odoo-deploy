@@ -2110,3 +2110,31 @@ LECCIÓN: al aprender reglas desde un movimiento, el patrón debe ser el
 identificador estable del tercero, no el concepto entero con mes/fecha.
 Costa Luz no sube facturas a Odoo: sus 4 pagos quedan abiertos en su 410
 (estado honesto).
+
+## 43. BT: auditoría de casados absurdos del multi-conciliador + consolidación de reglas (2026-07-19)
+
+Barrido con 3 detectores (banco↔banco en 430000; partners distintos; pagos a
+430000 sin ser devolución):
+- **6 partials absurdos más** deshechos (559-562, 667, 685): recibo luz
+  Acciona (−148,07) casado contra 4 liquidaciones TPV; compras Pepco (−10) y
+  "Málaga I" (−40) casadas contra liquidaciones TPV.
+- Re-ruteos: Acciona → **41000006** (+partner), O2 Fibra jun → **41000019**;
+  compras tarjeta (Pepco −10, Easygas −40, Málaga I −40) → **transitoria
+  572998** (vuelven a "Por conciliar" con los demás tickets de tarjeta,
+  is_reconciled=false).
+- **CAUSA RAÍZ de los misroutes**: reglas aprendidas con el CONCEPTO COMPLETO
+  (nº recibo/mes) que solo casan una vez. Consolidadas: Acciona (regla 20,
+  patrón `Acc.green Ener`), O2 (regla 19, `O2 Fibra - Telefonica`);
+  desactivadas 7 redundantes (48/67/68/69 y 21/49/65).
+- cararjfam: 0 absurdos. cararjfam_test: 7, todos de la company 2 LEGACY
+  (no operativa) — sin acción.
+- Cron BT ejecutado a mano (extractor + apply_rules + reconciler ≥90, SIN
+  multi_reconciler). OJO ejecución manual: como root falla (claude rechaza
+  --dangerously-skip-permissions) y sin `CLAUDE_CODE_OAUTH_TOKEN` exportado
+  usa credenciales caducadas → correr como odoo con
+  `--preserve-env=CLAUDE_CODE_OAUTH_TOKEN` (export de /etc/claude_token.env).
+- Recuperada de rechazadas y contabilizada la NOTA DE CARGO Howden Iberia
+  (293,94, 19-mar, invoice 5247) — cierra el pendiente "Howden mar".
+- PENDIENTE decisión: el bank_multi_reconciler acumula 3 incidentes de
+  casados absurdos (TGSS §37, Costa Luz §42, estos) — candidato a
+  deshabilitarse en BT o exigir mismo partner/texto.
