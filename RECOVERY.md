@@ -2224,3 +2224,21 @@ Leroy Merlin 113,24 sin adjunto NO es fantasma (5 cargos banco ↔ 5 facturas
 - Ganesha 26TB01147 DUPLICADA documentalmente (2 facturas mismo ref, ambas
   pagadas contra 2 cargos REALES de 50 € — gasto correcto): pedir el ticket
   real de la 2ª compra y sustituir ref/PDF de FACTU/2026/04/0010.
+
+## 48. Conciliación: pestaña "🧩 Sin factura" (casar pagos/cobros con facturas) (2026-07-20)
+
+Nueva vista en Conciliación (4º segmento): apuntes de PAGO/COBRO de banco ya
+ruteados a cuentas de tercero (410x/430x reconciliables) pero SIN casar con
+factura (reconciled=false, residual≠0, statement_line_id set).
+- Bridge `--sueltos` (backup .bak_sueltos): por cada apunte, propuesta de
+  casado por SUMA EXACTA (1..4 facturas del mismo tercero, signo contrario,
+  candidatos NO-extracto: facturas/abonos/asientos) + lista de hasta 40
+  abiertas para elegir a mano. `--match-amls --aml-id P --contra "F1,F2"`:
+  reconcile real en Odoo con guard de misma cuenta (permite parcial).
+- Endpoints: GET /api/conciliacion/sueltos, POST /api/conciliacion/casar.
+- UI: agrupado por cuenta·tercero (plegable, con suma), botón "Casar
+  propuesta" (✓ suma exacta) y desplegable "Facturas ▾" con checkboxes,
+  suma seleccionada vs objetivo (aviso de casado parcial) y 📄 visor.
+- E2E verificado: guard cuenta-distinta OK; casado real China City +24,35 ↔
+  factura 606160063 (ambos residual 0). En el momento del deploy: BT 300
+  sueltos (26 con propuesta exacta), cararjfam 25 (1), austral 0.
