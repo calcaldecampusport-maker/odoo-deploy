@@ -2199,3 +2199,28 @@ balance_start+Σlíneas vs balance_end declarado (el árbitro definitivo).
 - PATRÓN CONFIRMADO: el lote de reconstrucción del 06-jul creó facturas
   fantasma SIN adjunto con refs mal-OCR (Obramat §45, Securitas aquí).
   Revisar el resto de moves de ese lote con 0 adjuntos.
+
+## 47. Auditoría PROFUNDA de conciliaciones BT + CARARJFAM (2026-07-19)
+
+Batería de 9 detectores (/tmp/auditoria_conciliaciones.sql, reutilizable con
+-v cid=N): cuadre de extractos, pagos→cliente, cobros→proveedor, banco↔banco,
+partners cruzados, residuales incoherentes, keywords vs cuenta, facturas sin
+adjunto del lote 5-7 jul, y duplicados de factura por proveedor+importe.
+
+**BT (c3)**: detectores estructurales 1-7 LIMPIOS (los arreglos §37-46
+aguantan). El caso Deporocio del usuario estaba BIEN contabilizado (cargo
+−427,95 = exactamente facturas D-2026-014+D-2026-031: 371,93+56,02; el
+extracto cuadra con ese signo) → solo faltaba casarlo: HECHO (ambas paid).
+Leroy Merlin 113,24 sin adjunto NO es fantasma (5 cargos banco ↔ 5 facturas
+1:1) → falta su PDF (pedir a Leroy). Factura Leroy 20-may en BORRADOR
+(71,98 vs cargo 71,97 — revisar céntimo al publicar). Pares mismo importe
+(Culligan/NATJEVEP/Securitas/Telefónica/SGAE) = recurrentes legítimos.
+
+**CARARJFAM (c1)**: estructural limpio. 3 cobros mal ruteados corregidos:
+- Deporocio +1.464,10 (08-ene) estaba en 41000112 (¡proveedor!) → 43000102
+  cliente + partner (paga factura pre-2026 de la apertura agregada).
+- Amazon +140,98 → 600000 (devolución de compras; no había abono que casar).
+- Uber +2,13 → 629000.
+- Ganesha 26TB01147 DUPLICADA documentalmente (2 facturas mismo ref, ambas
+  pagadas contra 2 cargos REALES de 50 € — gasto correcto): pedir el ticket
+  real de la 2ª compra y sustituir ref/PDF de FACTU/2026/04/0010.
