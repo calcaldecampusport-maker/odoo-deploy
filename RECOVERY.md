@@ -2242,3 +2242,20 @@ factura (reconciled=false, residual≠0, statement_line_id set).
 - E2E verificado: guard cuenta-distinta OK; casado real China City +24,35 ↔
   factura 606160063 (ambos residual 0). En el momento del deploy: BT 300
   sueltos (26 con propuesta exacta), cararjfam 25 (1), austral 0.
+
+## 49. Conciliación: reparto multi-cuenta "⇄ Varias cuentas" (portado de wiemspro) (2026-07-20)
+
+En el panel de conciliación manual, junto a "Conciliar a cuenta": editor de
+reparto (2+ filas cuenta+importe, autocompletado, +añadir/✕quitar, asignado y
+resto en vivo; botón activo solo con resto 0 y filas completas).
+- Bridge `--resolve-split --line-id N --reparto JSON` (backup .bak_split):
+  button_draft → sustituye la(s) línea(s) transitoria(s) por N contrapartidas
+  (debe si cargo, haber si abono, partner de la línea) → action_post → nota
+  en el chatter ("✅ Conciliado desde la web repartido en N cuentas · …").
+- Guardas verificadas E2E: suma ≠ pendiente (±0,01) rechazada; transitoria y
+  cuenta del banco vetadas como destino; DIARIOS EN MONEDA EXTRANJERA (Wise
+  USD) rechazados con mensaje claro (repartir débitos sin repartir divisa
+  corrompería el asiento) — probado con la línea Wise 23.370 USD.
+- Endpoint POST /api/conciliacion/resolver-split.
+- E2E real: línea 116 cararjfam (−904,32) repartida 600000:900 + 629000:4,32
+  ✓ y revertida a pendiente tras la prueba.
