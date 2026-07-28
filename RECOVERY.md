@@ -2259,3 +2259,30 @@ resto en vivo; botón activo solo con resto 0 y filas completas).
 - Endpoint POST /api/conciliacion/resolver-split.
 - E2E real: línea 116 cararjfam (−904,32) repartida 600000:900 + 629000:4,32
   ✓ y revertida a pendiente tras la prueba.
+
+## 50. Duplicados del extractor: visibles + guards anti-pérdida (3 empresas) (2026-07-28)
+
+**Problema**: los documentos descartados por duplicado se archivaban en
+contabilizado/ sin aparecer en Rechazados → invisibles. Caso IONOS
+(cararjfam): la factura de JUNIO se descartó como "duplicada"… de un asiento
+en BORRADOR (973) → junio sin contabilizar. Y caso TX442 (austral, 26-jun):
+"FRA.TX442 MODIFICADA" (9.812,89) descartada como dup de la TX 442 posteada
+(9.531,10) — factura CORREGIDA tragada.
+
+**Arreglos**:
+- IONOS junio 973 → POSTEADA (FACTU/2026/06/0009). Mayo era dup verdadero.
+- `already_exists` ×3 pipelines (.bak_dedup_cancel): excluye canceladas.
+- **Guard importe** ×3 (.bak_dup_importe): si la ref coincide pero el importe
+  difiere (>0,01), rc=31 → RECHAZADAS con motivo "misma ref pero importe
+  distinto: factura corregida u OCR" (el extractor manda rc∉{0,20} a
+  rechazadas). Evita el patrón TX442.
+- **Web**: sección "🔁 Descartados por duplicado" en Rechazados
+  (GET /api/rechazados/duplicados): une runs de /tmp (con fecha) + LOG
+  persistente del pipeline (histórico), dedup por archivo+ref, y muestra el
+  asiento existente con su ESTADO (publicado/BORRADOR/CANCELADO) y visor 📄
+  — un dup contra borrador salta a la vista.
+- Auditado el histórico completo de duplicados de las 3 empresas: todos los
+  asientos referenciados están ahora POSTED.
+- PENDIENTE usuario: decidir sobre TX442 (¿actualizar la factura 18970 de
+  austral con la versión modificada de 9.812,89? El PDF descartado está en
+  contabilizado/ del Drive austral).
