@@ -2303,3 +2303,9 @@ En Rechazados → "Descartados por duplicado", por cada descarte:
   verdaderos — los ficheros "invoice_219582834.pdf"/"invoice_223490930.pdf"
   (nombres de descarga genéricos de DIGI) son las facturas de abril
   (DGFCJ2600299387) y mayo (DGFCJ2600376804) ya contabilizadas.
+
+**Ampliación §51 (mismo día)**: el comparador 🆚 lleva ahora los dos veredictos
+en cabecera: "✔ No es duplicado + regla" (motivo → ReglaAsiento proveedor →
+contabiliza con FORCE_NO_DEDUP) y "🗑 Es duplicado: descartar y olvidar"
+(POST /rechazados/duplicados/confirmar → tabla `dup_extractor_confirmado`
+del app.db; el listado los excluye de forma permanente por empresa+archivo+ref).
