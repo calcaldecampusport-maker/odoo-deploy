@@ -2286,3 +2286,20 @@ en BORRADOR (973) → junio sin contabilizar. Y caso TX442 (austral, 26-jun):
 - PENDIENTE usuario: decidir sobre TX442 (¿actualizar la factura 18970 de
   austral con la versión modificada de 9.812,89? El PDF descartado está en
   contabilizado/ del Drive austral).
+
+## 51. Duplicados: comparador 🆚 + "No es duplicado" con regla (2026-07-28)
+
+En Rechazados → "Descartados por duplicado", por cada descarte:
+- **🆚 Comparar**: visor lado a lado — izquierda el PDF DESCARTADO (servido
+  desde Drive vía GET /api/rechazados/duplicados/archivo?name=, búsqueda por
+  nombre priorizando contabilizado/ de la empresa), derecha el PDF del asiento
+  CONTABILIZADO con los datos de ambos (proveedor/ref/fecha/importe).
+- **✔ No es duplicado**: pide MOTIVO obligatorio → lo guarda como
+  ReglaAsiento scope proveedor ("NO-DUPLICADO (...): motivo") → descarga el
+  archivo y lo procesa con `FORCE_NO_DEDUP=1` (bypass del chequeo en
+  process_invoice ×3, .bak_forcededup; el extractor propaga el env al ORM)
+  y --hint con el motivo. POST /api/rechazados/duplicados/contabilizar.
+- Verificación caso DIGI (cararjfam): los descartes ERAN duplicados
+  verdaderos — los ficheros "invoice_219582834.pdf"/"invoice_223490930.pdf"
+  (nombres de descarga genéricos de DIGI) son las facturas de abril
+  (DGFCJ2600299387) y mayo (DGFCJ2600376804) ya contabilizadas.
