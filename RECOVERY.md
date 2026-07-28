@@ -2327,3 +2327,16 @@ locales + XML-RPC, sin Drive-first):
   asiento) y los dos veredictos en cabecera.
 - Deploy: dist → /var/www/contab, backend → /opt/wiemspro-contab, restart
   wiemspro-contab. 1 duplicado histórico pendiente de veredicto (empresa 3).
+
+## 53. austral: banner de actualización + Novedades (copiado de wiemspro) (2026-07-28)
+
+- vite.config.js: BUILD_ID (Date.now base36) incrustado como __BUILD_ID__ y
+  publicado en /version.json en cada build (plugin emit-version-json).
+- UpdateBanner (montado en App.jsx): sondea /version.json cada 2 min y al
+  recuperar el foco; si el build difiere → banner ámbar sticky "La web se ha
+  actualizado — ACTUALIZA LA PÁGINA" + botón "¿Qué se ha actualizado?".
+- ChangelogModal + botón "🆕 Novedades" en TopNav: lee /changelog.json
+  (frontend/public/changelog.json, curado, más reciente primero).
+- DISCIPLINA DE DEPLOY: al desplegar cambios visibles, actualizar
+  frontend/public/changelog.json con la entrada nueva (si no, el banner
+  saldrá pero "Novedades" no reflejará el cambio).
