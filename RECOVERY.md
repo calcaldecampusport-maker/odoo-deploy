@@ -2309,3 +2309,21 @@ en cabecera: "✔ No es duplicado + regla" (motivo → ReglaAsiento proveedor �
 contabiliza con FORCE_NO_DEDUP) y "🗑 Es duplicado: descartar y olvidar"
 (POST /rechazados/duplicados/confirmar → tabla `dup_extractor_confirmado`
 del app.db; el listado los excluye de forma permanente por empresa+archivo+ref).
+
+## 52. contab.wiemspro.com: sistema de duplicados portado desde austral (2026-07-28)
+
+Misma funcionalidad que §50-51, adaptada a la arquitectura wiemspro (uploads
+locales + XML-RPC, sin Drive-first):
+- **Pipeline** /opt/automation_wiemspro/process_invoice.py (.bak_dup_guards):
+  already_exists excluye canceladas y devuelve id+name+amount_total; GUARD de
+  importe distinto → status failed con motivo (a rechazados); FORCE_NO_DEDUP=1
+  omite el chequeo (import os as _os añadido).
+- **Backend**: GET /api/documents/duplicados (uploads status=duplicate +
+  estado del asiento por RPC, excluye confirmados), POST .../confirmar
+  (tabla dup_extractor_confirmado, file=upload-<id>), POST .../contabilizar
+  (regla proveedor con motivo + webproc síncrono con FORCE_NO_DEDUP y --hint).
+- **Frontend**: sección "🔁 Descartados por duplicado" en Rechazadas con
+  🆚 comparador lado a lado (izq: /documents/uploads/<id>/file; dcha: PDF del
+  asiento) y los dos veredictos en cabecera.
+- Deploy: dist → /var/www/contab, backend → /opt/wiemspro-contab, restart
+  wiemspro-contab. 1 duplicado histórico pendiente de veredicto (empresa 3).
