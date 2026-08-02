@@ -2340,3 +2340,22 @@ locales + XML-RPC, sin Drive-first):
 - DISCIPLINA DE DEPLOY: al desplegar cambios visibles, actualizar
   frontend/public/changelog.json con la entrada nueva (si no, el banner
   saldrá pero "Novedades" no reflejará el cambio).
+
+## 54. INCIDENTE: SyntaxError en el guard de duplicados paró la contabilización 28-jul→02-ago (2026-08-02)
+
+**Causa (fallo propio)**: el guard de "importe distinto" (§50) usaba comillas
+dobles anidadas en un f-string — válido en Python 3.12 (con el que se validó
+con compile()) pero SyntaxError en el 3.11 del venv de Odoo que ejecuta los
+pipelines. Al no cargar process_invoice.py, TODAS las facturas de los crons
+nocturnos fallaron con "orm rc=1" → rechazadas (~147 docs: 140 austral, 5 BT,
+2 cararjfam) + la subida manual del usuario (WhatsApp, cararjfam).
+**LECCIÓN CRÍTICA: validar los parches SIEMPRE con el intérprete que los
+ejecuta** (/opt/odoo17/venv/bin/python -m py_compile), no con python3 del
+sistema.
+**Arreglo**: f-string corregido en los 3 pipelines (variable ref_doc fuera
+del f-string); wiemspro no estaba afectado (comillas simples). Las 147
+víctimas identificadas por firma en logs (rc=1 + REASON=misma ref) y movidas
+de rechazadas/ a pending/ en Drive; extractores relanzados en background
+(nohup, austral ~140 docs tardará horas; lo que quede lo barre el cron
+nocturno). Subida manual reprocesada: FACTU/2026/07/0005 (Automóviles Málaga,
+169,40) y upload 14 marcado done.
