@@ -2359,3 +2359,18 @@ de rechazadas/ a pending/ en Drive; extractores relanzados en background
 (nohup, austral ~140 docs tardará horas; lo que quede lo barre el cron
 nocturno). Subida manual reprocesada: FACTU/2026/07/0005 (Automóviles Málaga,
 169,40) y upload 14 marcado done.
+
+## 55. AUSTRAL desactivada en la web (empresa.activa aplicado) (2026-08-02)
+
+A petición del usuario: `UPDATE empresa SET activa=0 WHERE clave='austral'`.
+El flag existía pero NO se respetaba → ahora sí, en dos capas:
+- login (auth.py): si la empresa del usuario está inactiva → 403
+  empresa_desactivada con mensaje claro (+ audit login_blocked).
+- require_auth (security.py): toda petición de un usuario de empresa inactiva
+  → 403 (mata también las sesiones ya abiertas); el fallback de empresa por
+  defecto ahora elige la primera ACTIVA (antes forzaba austral).
+Verificado E2E: token de usuario austral (id 2) → 403 empresa_desactivada;
+usuario cararjfam (id 5) → 200. Afecta a 4 usuarios (c@x.com, c.alcalde
+gmail, rdpablo@austral.es, epedraz@austral.es). Los CRONES del pipeline
+austral SIGUEN activos (extractor/dudas/backup) — solo se corta la web.
+REACTIVAR: UPDATE empresa SET activa=1 WHERE clave='austral';
