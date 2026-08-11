@@ -2546,6 +2546,31 @@ archivado sin importar: si pasa, borrar el upload, devolver el fichero a la band
 raíz del Drive y relanzar `cron_cola_vps.py`. Los 9 diarios banco de la company 12
 tienen su IBAN puesto: el importador casa el extracto por IBAN.
 
+### 56.7c Lote semanal de facturas EMITIDAS (2026-08-11)
+
+El programa de facturación de Austral exporta cada semana UN PDF con decenas de
+facturas de venta, muchas impresas 2-3 veces. `app/services/fras_emitidas.py`
+(austral-contab) lo detecta en la bandeja raíz del Drive (emisor CIF A-39100573 +
+cabecera Factura/Albarán + «Total Final»), agrupa las páginas por número de factura
+(las multi-página se detectan por «Pag. X/Y»), DEDUPLICA, trocea el PDF con pypdf y
+contabiliza cada factura a su cliente como `out_invoice` PUBLICADA en el diario INV:
+
+  · cliente por su cuenta `430<código ERP>` (el código sale arriba a la derecha de
+    cada página), después por nombre, y si no existe se crea
+  · impuesto por el tipo del PDF (21/10/4 → IVA xx% G); al 0% decide la POSICIÓN
+    FISCAL del cliente (exento CCM / intracomunitario / exportación); plantilla
+    en INGLÉS soportada («Tax base» / «Final total»); facturas a 0,00 € (reposiciones)
+    se contabilizan a 0
+  · idempotente por `ref` = «FV <número>»: los lotes que se solapan no duplican
+  · si el total de Odoo no cuadra con el del PDF (±0,02) queda en BORRADOR con aviso
+    (p.ej. Mónaco al 20%%, que no es un tipo español)
+  · a cada factura se le adjunta SOLO su PDF (ir.attachment) y se crea su fila en
+    document_uploads (visor de la web, «Factura emitida · <cliente>»)
+
+El venv necesita **pypdf**. El hook vive en `cron_cola_vps.py` (bandeja raíz, antes
+del extractor de proveedores). La cuenta de servicio de Drive NO puede CREAR ficheros
+(cuota 0): los lotes los sube el usuario; la SA solo los mueve a Contabilizado/Rechazadas.
+
 ### 56.7b Pendiente
 
 - Posiciones fiscales: Austral tiene **0** (Wiemspro tiene 32). Hay que crearlas
