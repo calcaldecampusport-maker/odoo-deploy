@@ -2392,7 +2392,8 @@ más en él**.
 | Pieza | Dónde |
 |---|---|
 | Web de Austral | `austral-contab.service` (:5003) · `/opt/austral-contab` · `pruebas-ca.medicalcables.eu` |
-| **Frontend de la web de Austral** | ⛔ el código fuente es `wiemspro-contab/frontend` (repo local del PC): se compila ahí (`npm run build`) y el `dist` se copia a `/var/www/austral-contab` **conservando su `changelog.json`**. En `/opt/austral-contab/frontend.VIEJO_NO_USAR` hay una copia ANTIGUA que NO debe compilarse ni desplegarse (el 2026-08-11 se desplegó por error y la web retrocedió a la versión vieja). |
+| **Frontend de la web de Austral** | ⛔ el código fuente es `wiemspro-contab/frontend` (repo local del PC): `npm run build` y el `dist` a `/var/www/austral-contab`, **conservando su `changelog.json`**. La copia vieja que había en `/opt/austral-contab/frontend` se compiló y desplegó por error el 2026-08-11 (la web retrocedió a la versión antigua): está **ELIMINADA** y en su lugar hay un `frontend_LEEME.txt` con la receta. |
+| **Fuentes de frontend de las 4 webs contab** | contab.wiemspro.com y pruebas-ca ← repo local `wiemspro-contab` · contab.medicalcables.eu ← repo local `medicalcables-contab` · austral.carajfam.com ← `/opt/carajfam-contab/frontend` (esta SÍ se compila en el VPS; su dist coincide con `/var/www/carajfam`). Las carpetas `/opt/{wiemspro,medicalcables}-contab/frontend` son copias viejas SIN compilar con un `LEEME_NO_COMPILAR_AQUI.txt` dentro. |
 | BD de la app web | `/opt/austral-contab/backend/data/app.db` (SQLite) |
 | Pipeline nuevo (XML-RPC) | `/opt/automation_austral_e18/` |
 | Pipeline viejo (ORM Odoo 17) | `/opt/automation_austral/` — crons DESACTIVADOS salvo `backup_to_drive.py` |
