@@ -2505,6 +2505,31 @@ Comprobación tras tocarlo: `--dry-run` con el intérprete DEL CRON
 | Menú «Declaraciones AEAT» | `Technical Settings / AEAT manager` |
 | Modelo 190 | `Technical Settings / AEAT Model 190` |
 
+### 56.8 ⛔ REGLA multicompañía en contactos (incidente 2026-08-11)
+
+Al aislar los contactos por `company_ids` (Austral/Wiemspro/BSS) el Admin se quedó
+sin poder abrir Ajustes: el barrido «asignar por apuntes» capturó también los
+**partners de las propias compañías** (una company factura a otra usando el partner
+de esa company, así que tiene apuntes «ajenos»). La tarjeta de INTERNATIONAL
+AUSTRAL SPORT SA (partner 5859) acabó restringida a Wiemspro SL y la company 12 no
+podía leer su propia ficha; 8 de las 11 compañías estaban igual.
+
+Reglas al tocar `company_ids` de `res.partner` en `wiems_v18_prod`:
+1. **El partner de una `res.company` (y sus hijos) SIEMPRE compartido**
+   (`company_ids` vacío). Ajustes, los layouts de documentos y la facturación
+   intercompañía lo leen desde cualquier empresa.
+2. **Usuarios internos** (`partner_share=False`): no tocar; la regla de registro no
+   les aplica, pero colgarles hijos restringidos rompe el display_name.
+3. **Toda dirección hija hereda las compañías del padre** — una hija compartida con
+   padre restringido da «Error de acceso» al pintar su nombre.
+4. Tras cualquier reasignación masiva, pasar el barrido cruzado: para cada company,
+   partners referenciados por sus `account.move/payment/statement.line` que esa
+   company no puede ver → compartirlos con ella. Verificación esperada: 0 en las 4
+   activas (1, 3, 9, 12).
+5. Quedan ~55 `res.partner.bank` compartidas cuyo titular pertenece a 2 empresas
+   (Mouser, Digi-key, Arrow…): una cuenta bancaria solo admite una company, se
+   dejaron compartidas a propósito.
+
 ### 56.7 Pendiente
 
 - Posiciones fiscales: Austral tiene **0** (Wiemspro tiene 32). Hay que crearlas
