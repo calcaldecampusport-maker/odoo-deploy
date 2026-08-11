@@ -2405,6 +2405,21 @@ más en él**.
 Las 4 webs contab del VPS: wiemspro :5001 · medicalcables :5002 · austral :5003 ·
 austral-contab-web (la vieja, Community) :5000.
 
+### 56.1b ⛔ nginx de las webs SPA: NUNCA se cachea el index.html (2026-08-11)
+
+Tras un despliegue del frontend, el navegador seguía enseñando la app VIEJA: el
+`index.html` se servía sin `Cache-Control` y el navegador lo cacheaba por heurística
+sin revalidar (y como los assets viejos se borran en cada deploy, podía incluso
+romper la página). Regla para TODA web SPA de este VPS (vhost con
+`try_files $uri /index.html`):
+
+    location = /index.html { add_header Cache-Control "no-cache, no-store, must-revalidate"; }
+    location /assets/      { add_header Cache-Control "public, max-age=31536000, immutable"; }
+
+Aplicado el 2026-08-11 a pruebas-ca.medicalcables.eu y contab.medicalcables.eu
+(contab.wiemspro.com y austral.carajfam.com ya enviaban no-store). Si se crea una
+web nueva, este bloque va en su vhost desde el día uno.
+
 ### 56.2 Cron
 
 ```
