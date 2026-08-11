@@ -2374,3 +2374,149 @@ usuario cararjfam (id 5) → 200. Afecta a 4 usuarios (c@x.com, c.alcalde
 gmail, rdpablo@austral.es, epedraz@austral.es). Los CRONES del pipeline
 austral SIGUEN activos (extractor/dudas/backup) — solo se corta la web.
 REACTIVAR: UPDATE empresa SET activa=1 WHERE clave='austral';
+
+## 56. AUSTRAL migrada a Odoo 18 Enterprise (company 12) (2026-08-06 → 2026-08-11)
+
+**LO PRIMERO SI HAY QUE RESTAURAR**: la contabilidad de AUSTRAL ya NO vive en
+este VPS. Está en el Odoo 18 **Enterprise alojado** (BD `wiems_v18_prod`,
+company **12**), al que solo se llega por **XML-RPC** — en el servidor no hay
+Postgres de esa BD. El backup diario de §11 **no la incluye**: si se pierde
+Austral, se recupera desde los backups de ese Odoo, no de aquí. En este VPS
+están únicamente su web, su pipeline y su configuración.
+El Odoo 17 Community (`cararjfam_test`, company 4) conserva el histórico de
+Austral hasta 30/06/2026 y se queda como archivo de consulta: **no se escribe
+más en él**.
+
+### 56.1 Piezas y rutas
+
+| Pieza | Dónde |
+|---|---|
+| Web de Austral | `austral-contab.service` (:5003) · `/opt/austral-contab` · `pruebas-ca.medicalcables.eu` |
+| BD de la app web | `/opt/austral-contab/backend/data/app.db` (SQLite) |
+| Pipeline nuevo (XML-RPC) | `/opt/automation_austral_e18/` |
+| Pipeline viejo (ORM Odoo 17) | `/opt/automation_austral/` — crons DESACTIVADOS salvo `backup_to_drive.py` |
+| Odoo de Austral | `wiems_v18_prod`, company 12 = INTERNATIONAL AUSTRAL SPORT SA (NIF ESA39100573) |
+| Usuario Odoo del contable | `contabilidad@austral.com` (Elena Austral) |
+| Logs | `/var/log/austral-contab/` |
+| Cola de reintentos de PrestaShop | `/var/automation_austral_e18/ps_pendientes.json` |
+| Credenciales PrestaShop | `/etc/austral_prestashop.env` |
+| Token de Claude para los servicios web | `/etc/claude_token.env` (EnvironmentFile de austral-contab y wiemspro-contab) |
+
+Las 4 webs contab del VPS: wiemspro :5001 · medicalcables :5002 · austral :5003 ·
+austral-contab-web (la vieja, Community) :5000.
+
+### 56.2 Cron
+
+```
+# crontab del usuario odoo — liquidación diaria de PrestaShop (L-V 02:00)
+0 2 * * 1-5 cd /opt/automation_austral_e18 && HOME=/opt/odoo17 flock -n /tmp/austral_e18_ps.lock \
+  /opt/automation/venv/bin/python /opt/automation_austral_e18/ps_liquidacion_diaria.py \
+  >> /var/log/austral-contab/ps_liquidacion.log 2>&1
+```
+
+Los del pipeline viejo están comentados con la marca
+`[DESACTIVADO 2026-08-06 migracion Austral a Enterprise]`. **No reactivarlos**:
+escribirían en el Odoo 17. El único que sigue vivo de la carpeta vieja es
+`backup_to_drive.py` (40 4 * * *).
+
+El cron de la cola del Drive de Austral **no está instalado** a propósito; las
+líneas listas están en `/opt/automation_austral_e18/CRON_PENDIENTE.txt`. El botón
+"Procesar cola del Drive" de la web sí funciona (necesita `COLA_ROOT_FOLDER` en el
+`.env` de Austral apuntando a **su** raíz: sin él procesaría la bandeja de Wiemspro).
+
+### 56.3 Estado de la company 12 (11/08/2026)
+
+| | |
+|---|---|
+| Plan contable | 12.492 cuentas (todas las estructurales de Austral + 11.619 de tercero) |
+| Impuestos | 17 propios; los 12 con equivalente español llevan su xmlid `account.12_account_tax_template_<clave>` y sus etiquetas de casilla |
+| Diarios | 16 |
+| Contactos | 10.782, aislados con `company_ids=[12]` (invisibles desde Wiemspro) |
+| Asientos publicados | 6.055 · 20.990 apuntes |
+| Facturas de proveedor | 1.249 + 33 rectificativas |
+| Facturas de cliente | 1.896 + 105 rectificativas |
+| Liquidaciones de PrestaShop | 61 (01/07 → 10/08), todas con IVA y etiquetas |
+
+**Los xmlid de los impuestos son imprescindibles**: las Declaraciones AEAT de la
+OCA buscan cada impuesto por `account.<company>_account_tax_template_<clave>`
+(igual que en Wiemspro). Un impuesto creado a mano sin ese xmlid **no lo ve el
+303 y la declaración sale a cero**. Si se crean impuestos nuevos para Austral,
+darles el xmlid y copiar las etiquetas del equivalente de Wiemspro SL.
+
+### 56.4 Conversión de los asientos del ERP en facturas (11/08/2026)
+
+Los 5.993 asientos importados del Excel del ERP entraron como asiento suelto
+(`move_type='entry'`). Se han re-tipado a factura **en sitio**, sin pasar por
+borrador:
+
+- 1.278 del diario FACTU → `in_invoice` / `in_refund` (33 abonos)
+- 2.000 del diario INV → `out_invoice` / `out_refund` (105 abonos)
+- se conservan número, fecha, importes, cuentas y **las 1.542 conciliaciones**
+  contra los bancos
+
+**Por qué en sitio y no por borrador**: `button_draft` llama a
+`remove_move_reconcile()` — despublicar habría roto todas las conciliaciones.
+La escritura sobre un asiento publicado necesita
+`context={'skip_readonly_check': True}` (Odoo protege `partner_id` e
+`invoice_date`), y el orden importa: **primero el documento** (move_type +
+partner) y **después la línea** del tercero a `display_type='payment_term'`; al
+revés, Odoo recalcula la cuenta del tercero desde un partner vacío y la manda a
+la genérica. El total de una factura sale de precio × cantidad, así que a cada
+línea de gasto/ingreso hay que ponerle `price_unit` = su saldo (con el signo del
+tipo de documento) o la factura muestra 0,00 con la contabilidad correcta.
+
+Backups del estado previo (JSON con move_type, display_type, cuenta e importe de
+cada apunte, suficiente para deshacerlo):
+`/var/automation_austral/backup_factu_entries.json` y `backup_inv_entries.json`.
+
+Queda **1 asiento sin convertir**: `FACTU/2026/02/0089` (ERP 1073/A787), con 6
+líneas de proveedor distintas — hay que repartirlo a mano.
+
+### 56.5 IVA de las liquidaciones de PrestaShop
+
+`ps_liquidacion_diaria.py` escribía la cuenta de IVA (477xxx) a mano, así que los
+apuntes no llevaban impuesto y **el 303 salía a cero**. Ahora crea una línea de
+venta **por tipo de IVA con su impuesto** y la línea de IVA la genera Odoo con sus
+etiquetas. Las 61 liquidaciones ya contabilizadas se rehicieron con `--rehacer`
+(conserva el número: pasa a borrador, cambia las líneas y vuelve a publicar).
+
+Tres trampas que costaron 7 días de asientos sin publicar:
+
+1. Las **líneas de IVA no se pueden borrar a mano** (Odoo protege el informe de
+   impuestos): hay que quitar el impuesto de la línea de venta y Odoo las retira.
+2. Mientras el borrador está descuadrado Odoo mete una **línea de compensación en
+   su cuenta transitoria** (572999000). Hay que borrarla y colocar el descuadre
+   **en la misma escritura**, o Odoo la vuelve a meter.
+3. El céntimo de redondeo (cada tramo de IVA se redondea aparte) **no puede ir a
+   la base del 21%**: Odoo recalcularía la cuota y el ajuste oscila sin converger.
+   Va a una línea exenta (0%, no arrastra cuota) o a una línea nueva de REDONDEO
+   sin impuesto. Al cobro del banco no se toca nunca: es el importe real.
+
+Copia del script anterior: `ps_liquidacion_diaria.py.bak_pre_iva`.
+Comprobación tras tocarlo: `--dry-run` con el intérprete DEL CRON
+(`sudo -u odoo env HOME=/opt/odoo17 /opt/automation/venv/bin/python …`), no con
+`python3` del sistema (lección de §54).
+
+### 56.6 Permisos de un usuario de Austral en Odoo (no obvios)
+
+| Para ver | Hace falta el grupo |
+|---|---|
+| Pestaña «Apuntes contables» de una factura | `Accounting / Read-only` (¡`Advisor` NO lo implica en esta BD!) |
+| Menú «Declaraciones AEAT» | `Technical Settings / AEAT manager` |
+| Modelo 190 | `Technical Settings / AEAT Model 190` |
+
+### 56.7 Pendiente
+
+- Posiciones fiscales: Austral tiene **0** (Wiemspro tiene 32). Hay que crearlas
+  y repartirlas: nacional 10.198 · Canarias/Ceuta/Melilla **exento** 437 ·
+  intracomunitario 51 · extracomunitario ~11 · sin datos 53.
+- 10.612 contactos con el **país vacío** (el volcado de Odoo 17 no lo traía);
+  se puede rellenar desde el prefijo del NIF y la dirección.
+- 27 contactos con el NIF inválido (RFC mexicanos, Andorra, Marruecos y ~10 con
+  basura tipo "FALTA"/"NINGUNO"/"XXX").
+- El **modelo 349** no puede salir de las liquidaciones de PrestaShop: son
+  asientos agregados sin tercero y el 349 necesita el detalle por cliente.
+- Enero–junio **sin etiquetas fiscales** a propósito (el 303 de esos meses ya se
+  presentó desde el ERP): el 303 de ese periodo sale a cero.
+- Carpetas de tarjetas en el Drive de Austral y su `tarjetas.json`.
+- `/opt/automation_austral_e18` **no está en git**.
