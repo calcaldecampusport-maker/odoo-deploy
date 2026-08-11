@@ -2419,8 +2419,10 @@ Los del pipeline viejo están comentados con la marca
 escribirían en el Odoo 17. El único que sigue vivo de la carpeta vieja es
 `backup_to_drive.py` (40 4 * * *).
 
-El cron de la cola del Drive de Austral **no está instalado** a propósito; las
-líneas listas están en `/opt/automation_austral_e18/CRON_PENDIENTE.txt`. El botón
+El cron de la cola del Drive de Austral está **ACTIVADO** desde el 2026-08-11
+(23:15 y 10:45, `flock /tmp/austral_e18_cola.lock`, log en
+`/var/log/austral-contab/cola.log`). El de tarjetas sigue pendiente en
+`/opt/automation_austral_e18/CRON_PENDIENTE.txt` hasta tener `tarjetas.json`. El botón
 "Procesar cola del Drive" de la web sí funciona (necesita `COLA_ROOT_FOLDER` en el
 `.env` de Austral apuntando a **su** raíz: sin él procesaría la bandeja de Wiemspro).
 
