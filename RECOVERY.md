@@ -2392,6 +2392,7 @@ más en él**.
 | Pieza | Dónde |
 |---|---|
 | Web de Austral | `austral-contab.service` (:5003) · `/opt/austral-contab` · `pruebas-ca.medicalcables.eu` |
+| **Frontend de la web de Austral** | ⛔ el código fuente es `wiemspro-contab/frontend` (repo local del PC): se compila ahí (`npm run build`) y el `dist` se copia a `/var/www/austral-contab` **conservando su `changelog.json`**. En `/opt/austral-contab/frontend.VIEJO_NO_USAR` hay una copia ANTIGUA que NO debe compilarse ni desplegarse (el 2026-08-11 se desplegó por error y la web retrocedió a la versión vieja). |
 | BD de la app web | `/opt/austral-contab/backend/data/app.db` (SQLite) |
 | Pipeline nuevo (XML-RPC) | `/opt/automation_austral_e18/` |
 | Pipeline viejo (ORM Odoo 17) | `/opt/automation_austral/` — crons DESACTIVADOS salvo `backup_to_drive.py` |
