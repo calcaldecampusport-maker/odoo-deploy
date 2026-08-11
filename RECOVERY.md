@@ -2530,7 +2530,23 @@ Reglas al tocar `company_ids` de `res.partner` en `wiems_v18_prod`:
    (Mouser, Digi-key, Arrow…): una cuenta bancaria solo admite una company, se
    dejaron compartidas a propósito.
 
-### 56.7 Pendiente
+### 56.7 Extractos bancarios de Austral (parsers propios, 2026-08-11)
+
+`app/services/bank_import.py` de **austral-contab** lleva los parsers de los bancos de
+Austral, que el código heredado de Wiemspro no conocía: **ABANCA** (.xls «Consulta de
+movimientos», calcula el IBAN desde el CCC con mod-97), **BBVA** (.xlsx «Histórico
+movimientos», cabecera en la fila 16), **Santander** (.xlsx «MovimientosCuenta» — el
+fichero declara mal sus dimensiones y hay que llamar a `ws.reset_dimensions()` o
+openpyxl solo ve una celda), **Caja Rural** (.xlsx) y **Liberbank/Unicaja** (.xls hoja
+«Unicaja01»). Todos vienen del más reciente al más antiguo con saldo corrido. El venv
+necesita **xlrd** (los .xls antiguos; a Wiemspro ya lo tenía y a Austral le faltaba).
+Los movimientos deben devolverse con la clave `concepto` (no `descripcion`) o
+`importar_extracto` revienta a mitad y el upload queda en `processing` con el fichero
+archivado sin importar: si pasa, borrar el upload, devolver el fichero a la bandeja
+raíz del Drive y relanzar `cron_cola_vps.py`. Los 9 diarios banco de la company 12
+tienen su IBAN puesto: el importador casa el extracto por IBAN.
+
+### 56.7b Pendiente
 
 - Posiciones fiscales: Austral tiene **0** (Wiemspro tiene 32). Hay que crearlas
   y repartirlas: nacional 10.198 · Canarias/Ceuta/Melilla **exento** 437 ·
