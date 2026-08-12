@@ -2542,9 +2542,12 @@ Reglas al tocar `company_ids` de `res.partner` en `wiems_v18_prod`:
 3. **Toda dirección hija hereda las compañías del padre** — una hija compartida con
    padre restringido da «Error de acceso» al pintar su nombre.
 4. Tras cualquier reasignación masiva, pasar el barrido cruzado: para cada company,
-   partners referenciados por sus `account.move/payment/statement.line` que esa
-   company no puede ver → compartirlos con ella. Verificación esperada: 0 en las 4
-   activas (1, 3, 9, 12).
+   partners referenciados por sus documentos que esa company no puede ver →
+   compartirlos con ella. Y no solo contabilidad: también `sale.order` (partner,
+   invoice y shipping), `purchase.order`, `crm.lead`, `stock.picking` y
+   `account.analytic.line` (el 2026-08-11 el primer barrido solo miró account.* y
+   Bárbara no podía editar pedidos de la CORP: 77 pedidos con el cliente invisible;
+   fueron 110 contactos más a compartir). Verificación esperada: 0 referencias rotas.
 5. Quedan ~55 `res.partner.bank` compartidas cuyo titular pertenece a 2 empresas
    (Mouser, Digi-key, Arrow…): una cuenta bancaria solo admite una company, se
    dejaron compartidas a propósito.
