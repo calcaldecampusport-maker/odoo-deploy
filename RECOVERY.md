@@ -51,6 +51,53 @@ ufw --force enable
 systemctl enable --now fail2ban
 ```
 
+### 1.4 Lista blanca de fail2ban — NO OMITIR (añadido 09/09/2026)
+
+La jaula `sshd` viene con `maxretry 5`, `findtime 600`, `bantime 600` y **sin
+ninguna IP ignorada**. Eso significa que **cinco intentos fallidos en diez
+minutos desde la IP de la oficina nos dejan fuera a todos a la vez**:
+despliegues, crons lanzados a mano y las sesiones de Claude Code, que salen por
+esa misma IP. Ocurrió el 09/09/2026 — un cliente nuevo probó usuarios que no
+existen (`gestionnoofit`, `ubuntu`, `debian`, `admin`, `wiemspro`) y encadenó
+seis intentos.
+
+```bash
+cat > /etc/fail2ban/jail.d/ignoreip.local <<'INI'
+[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1 <IP_PUBLICA_DE_LA_OFICINA>
+INI
+chmod 644 /etc/fail2ban/jail.d/ignoreip.local
+fail2ban-client reload
+fail2ban-client get sshd ignoreip     # debe listar las tres entradas
+```
+
+Va en `jail.d/*.local` a propósito: `jail.conf` lo sobrescribe el paquete en
+cada actualización, y los `.local` de `jail.d` tienen la máxima precedencia.
+
+**La IP de la oficina es DINÁMICA.** El día que el ISP la cambie, esta lista
+deja de protegernos y —peor— blanquea a quien la herede. Si volvemos a
+autobanearnos, lo PRIMERO que hay que comprobar es si sigue siendo la nuestra:
+
+```bash
+curl -s ifconfig.me      # desde el PC de la oficina
+```
+
+Riesgo asumido: si esa IP se viera comprometida, fail2ban ya no la frena. Es
+bajo porque el acceso es **solo por clave** (`PasswordAuthentication no`), y la
+fuerza bruta de contraseñas —lo que fail2ban ataja— no aplica.
+
+**Desbanear a mano** (cuando el baneado NO está en la lista blanca):
+
+```bash
+fail2ban-client status sshd                    # ver si está baneada de verdad
+fail2ban-client set sshd unbanip <IP>
+```
+
+> Antes de desbanear, mira el log: si la autenticación sigue fallando, en dos
+> minutos vuelve a estar baneada. Lo habitual es que se esté usando **otro
+> usuario**: en esta máquina el único con login es `root`.
+> `journalctl -u ssh --since '-1h' | grep <IP>`
+
 ---
 
 ## 2. Apunta el DNS al servidor nuevo
