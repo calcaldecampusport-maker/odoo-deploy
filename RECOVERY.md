@@ -2655,3 +2655,36 @@ del extractor de proveedores). La cuenta de servicio de Drive NO puede CREAR fic
   presentó desde el ERP): el 303 de ese periodo sale a cero.
 - Carpetas de tarjetas en el Drive de Austral y su `tarjetas.json`.
 - `/opt/automation_austral_e18` **no está en git**.
+
+### 56.9 Traspasos entre bancos y revisión de ventas en Austral (15/9/2026)
+
+- **Cuenta de traspasos**: `572999001 TRANSFERENCIA DE LIQUIDEZ ENTRE BANCOS`
+  (id 31611, asset_current, conciliable) es el `transfer_account_id` de la company
+  12 (antes apuntaba a 555000000 Partidas pendientes, que se dejó como estaba con
+  sus 47 abiertas). La `572999000` es la SUSPENSE de los extractos: enrutar ahí es
+  un no-op y el guard lo impide — no usarla nunca para traspasos.
+- **Reglas aprendidas** (ConcilRegla, empresa austral) para traspasos: `trf.int
+  austral sport sa` [cargo], `TRANSFERENCIAS INTERNATIONAL AUSTRAL SPORT` [abono],
+  `TRANSFERENCIAS AUSTRAL LACAIXA` [cargo], `TRANSFER INMEDIATA INTERNATIONAL
+  AUSTRAL SPORT` [abono] → 572999001. El pase automático puede enrutar a la cuenta
+  puente aunque no haya abiertas que casen (misma excepción que «transferencia de
+  liquidez»): la pata queda abierta esperando el extracto del otro banco.
+- **Ambigüedad**: el guard «varios documentos cuadran igual» solo bloquea el pase
+  AUTOMÁTICO; en manual se enruta a la cuenta sin casar (queda abierta en el
+  tercero para casarla en «movimientos de la cuenta»). Motivo: una devolución de
+  cliente (855,85 CLUB PIRAGUISMO) no se podía ni contabilizar.
+- **Ventas de Austral sin revisión manual**: las out_invoice/out_refund
+  CONTABILIZADAS se marcan revisadas — backfill de 2.302 el 15/9 y el lote semanal
+  (`fras_emitidas.procesar_lote`) marca cada factura que publica (vía
+  `venta contabilizada (lote, auto)`). Las que quedan en borrador siguen pidiendo
+  aprobación humana.
+- **Austral NO está en el sync del PC** (`sync_contab_webs.ps1` solo cubre Medical
+  y carajfam): su backend se pone al día copiando a mano los ficheros de
+  wiemspro-contab SIN machacar `services/fras_emitidas.py` ni el hook de
+  `documents.py`/`cron_cola_vps.py` (customizaciones austral). El 15/9 se
+  portaron `api/conciliacion.py`, `api/revision.py`, `models/tarjeta_olvidado.py`
+  y `models/__init__.py`. Su frontend es el dist compartido de wiemspro
+  (conservar `/var/www/austral-contab/changelog.json` al desplegar).
+- **Visor**: `/invoices/<id>` devuelve `conciliado_con` (parciales de Odoo →
+  documento contrapartida con partner/ref/importe); InvoiceModal lo pinta con
+  visor anidado. Commit `37e14d3` de wiemspro-contab.
