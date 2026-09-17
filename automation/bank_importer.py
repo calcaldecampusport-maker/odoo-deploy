@@ -151,12 +151,59 @@ def _detect_column_indices(df: pd.DataFrame) -> tuple[int, int, int, int]:
     return -1, -1, -1, -1, -1
 
 
+def _read_xls_robusto(raw: bytes):
+    """Lee .xls probando xlrd; si falla (muchos export bancarios son HTML
+    disfrazado de .xls) prueba read_html y luego openpyxl."""
+    import pandas as pd, io
+    # 0) xlrd DIRECTO (bypassa el check de version pandas<->xlrd; xlrd 1.2.0 lee .xls binario)
+    try:
+        import xlrd as _xlrd
+        _wb = _xlrd.open_workbook(file_contents=raw)
+        _sh = _wb.sheet_by_index(0)
+        _rows = []
+        for _r in range(_sh.nrows):
+            _row = []
+            for _c in range(_sh.ncols):
+                _cell = _sh.cell(_r, _c)
+                _v = _cell.value
+                # convertir fechas serial Excel -> ISO
+                if _cell.ctype == _xlrd.XL_CELL_DATE:
+                    try:
+                        _dt = _xlrd.xldate_as_datetime(_v, _wb.datemode)
+                        _v = _dt.strftime('%Y-%m-%d')
+                    except Exception:
+                        _v = str(_v)
+                _row.append('' if _v is None else str(_v))
+            _rows.append(_row)
+        if _rows:
+            return pd.DataFrame(_rows, dtype=str)
+    except Exception:
+        pass
+    # 1) xlrd via pandas (xls binario real, si la version casa)
+    try:
+        return pd.read_excel(io.BytesIO(raw), engine="xlrd", header=None, dtype=str)
+    except Exception:
+        pass
+    # 2) HTML disfrazado de .xls (común en bancos espanoles)
+    try:
+        tables = pd.read_html(io.BytesIO(raw), header=None)
+        if tables:
+            return tables[0].astype(str)
+    except Exception:
+        pass
+    # 3) openpyxl (por si es xlsx con extension .xls)
+    try:
+        return pd.read_excel(io.BytesIO(raw), engine="openpyxl", header=None, dtype=str)
+    except Exception as e:
+        raise ValueError(f"no se pudo leer .xls (xlrd/html/openpyxl fallaron): {e}")
+
+
 def _parse_csv_or_xls(file_path: Path, raw: bytes, fmt: str) -> dict:
     """Returns {iban, transactions: [{date, concept, amount, balance}], balance_start, balance_end}."""
     if fmt == "csv":
         df = pd.read_csv(io.BytesIO(raw), header=None, dtype=str, encoding="utf-8", on_bad_lines="skip")
     elif fmt == "xls":
-        df = pd.read_excel(io.BytesIO(raw), engine="xlrd", header=None, dtype=str)
+        df = _read_xls_robusto(raw)
     elif fmt == "xlsx":
         df = pd.read_excel(io.BytesIO(raw), engine="openpyxl", header=None, dtype=str)
     else:
@@ -277,12 +324,46 @@ def import_file(file_path: Path) -> dict:
                     "iban_hint": iban, "transactions": len(txs)}
 
         company_id = journal.company_id.id
+
+        # --- Dedup por-linea: despreciar movimientos ya importados (solape de extractos) ---
+        # Regla (jul 2026): al reimportar un extracto que solapa con otro ya subido NO se
+        # recrean las lineas que ya existen (mismo journal + fecha + importe + concepto).
+        # Conteo multiset -> respeta repeticiones legitimas el mismo dia (p.ej. dos recibos
+        # identicos): solo se importa el excedente sobre lo ya presente en ese rango.
+        from collections import Counter as _Counter
+        def _tx_key(_d, _amt, _ref):
+            return (_d.isoformat() if hasattr(_d, "isoformat") else str(_d),
+                    round(float(_amt or 0), 2), (_ref or "").strip()[:120])
+        _all_min = min(t["date"] for t in txs)
+        _all_max = max(t["date"] for t in txs)
+        _existing = env["account.bank.statement.line"].search([
+            ("journal_id", "=", journal.id),
+            ("date", ">=", _all_min), ("date", "<=", _all_max)])
+        _seen = _Counter(_tx_key(l.date, l.amount, l.payment_ref) for l in _existing)
+        _new_txs = []
+        _skipped = 0
+        for _tx in txs:
+            _k = _tx_key(_tx["date"], _tx["amount"], (_tx["concept"][:120] or "Movimiento"))
+            if _seen.get(_k, 0) > 0:
+                _seen[_k] -= 1
+                _skipped += 1
+                continue
+            _new_txs.append(_tx)
+        log.info(f"  dedup: {_skipped} ya importados, {len(_new_txs)} nuevos de {len(txs)}")
+        if not _new_txs:
+            return {"file": str(file_path), "format": fmt, "iban": iban,
+                    "journal_id": journal.id, "duplicate": True, "skipped": _skipped,
+                    "lines": 0, "transactions": len(txs),
+                    "min_date": str(_all_min), "max_date": str(_all_max),
+                    "note": "todos los movimientos ya estaban importados"}
+        txs = _new_txs
         min_date = min(t["date"] for t in txs)
         max_date = max(t["date"] for t in txs)
-        balance_start = parsed.get("balance_start") or 0.0
         balance_end = parsed.get("balance_end")
         if balance_end is None:
-            balance_end = balance_start + sum(t["amount"] for t in txs)
+            balance_end = (parsed.get("balance_start") or 0.0) + sum(t["amount"] for t in parsed.get("transactions", []))
+        # balance_start coherente con el subconjunto REALMENTE importado (start + sum = end)
+        balance_start = round(balance_end - sum(t["amount"] for t in txs), 2)
 
         statement_name = f"{journal.name} {min_date.isoformat()} a {max_date.isoformat()}"
         # Idempotencia (regla global anti-duplicado): no reimportar el mismo extracto.

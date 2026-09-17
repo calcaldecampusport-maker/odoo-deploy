@@ -1,0 +1,135 @@
+{
+  "tarjetas_banco_folder": "1__-z1St2oE5AMBHRv8IbSJusgxF10Iit",
+  "tarjetas": [
+    {
+      "sigla": "WSL",
+      "company_id": 1,
+      "account_code": "520001",
+      "account_name": "Tarjeta Bankinter Bárbara 5139",
+      "folder_id": "16rI91l9G8D9hIbdy22dP-wh1WAs6lFG_",
+      "contabilizado_folder": "1Cx2mrZeQBXV6EFfM64ZuDitPyZbFQkJK",
+      "revision_folder": "1TzxC9dpIRbnha0rcc93JTuZLkh80ztog",
+      "rechazadas_folder": "1hYehGnjnXCf3YVhmA1gNxqGRPNB-7CDE"
+    },
+    {
+      "sigla": "WSL",
+      "company_id": 1,
+      "account_code": "520003",
+      "account_name": "Tarjeta Bankinter Carlos 7737",
+      "folder_id": "18DHQADGASNPZAj6ztwIwAsYf9mbHkXbz",
+      "contabilizado_folder": "1fEjDdtmNGxaCRkGX7migDAyQ7pS5WacF",
+      "revision_folder": "1bcgtd7bkoaPwVfUTbKHT26q_J4xCr8Ce",
+      "rechazadas_folder": "1oLtdVJUKSTEvtIx_xh8cgNhwnPl8Rahd"
+    },
+    {
+      "sigla": "WSL",
+      "company_id": 1,
+      "account_code": "520007",
+      "account_name": "Tarjeta Bankinter Javier 8874",
+      "folder_id": "1KyfxLHnNDw31uaAjqPQcN0kipo4F_KXt",
+      "contabilizado_folder": "1ylukHgcYaX0CcvxtUjGCWxi09YhYx_S9",
+      "revision_folder": "1Zb7FlxdSyOK8VMwaVdMA_tsY2mR13ACX",
+      "rechazadas_folder": "1WtN6IA8Od7X9iIYaE69OTgGi6kIccU_b"
+    },
+    {
+      "sigla": "WSL",
+      "company_id": 1,
+      "account_code": "520008",
+      "account_name": "Tarjeta Bankinter Abraham 4366",
+      "folder_id": "1WBqbd5VRk_A4ydSxX32afYiMOv3c84y8",
+      "contabilizado_folder": "11SyQ8_4hJ2wFZCWutpxV0EWVRiLvB7cN",
+      "revision_folder": "1OpnEqVQII1n8OUoJdvuLmYiLSW3JISrQ",
+      "rechazadas_folder": "1ZAnxOeT0ot-uP5U1abEUHx1IoE7-zlNV"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520001",
+      "account_name": "Tarjeta Bankinter Bárbara 3246",
+      "folder_id": "1Yrg1Dd0x7f4La91S-ZHUHAMw0JEDdxrW",
+      "contabilizado_folder": "1YzRKQpke7rKzvENwj1XrajYcLmrJNTeJ",
+      "revision_folder": "12ECfVCDMvJFB0lhaGbXasi7otqlhCovz",
+      "rechazadas_folder": "1fh4Hlih3QMDAshkK8cWwS3i_UrR0GN5-"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520002",
+      "account_name": "Tarjeta Bankinter Raúl 5200",
+      "folder_id": "17to0uKhA2l1nKQCQSPC1cERifBEaIvhu",
+      "contabilizado_folder": "1O6xOolbES-wuzTBjNdVkf0lyj60g3yD4",
+      "revision_folder": "1EPcRI9idIpxz1DnAv4L-XI3wbchEeQlr",
+      "rechazadas_folder": "16Bb8kOIXz6wgzJcfBcdXE8D9oexwaZnZ"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520003",
+      "account_name": "Tarjeta Bankinter Carlos 1968",
+      "folder_id": "1Vl0X_B55dDxmniOpZS9nKGaCu7D4pwRT",
+      "contabilizado_folder": "1qj6g0UdYb-JAJNcuq5iOxeP1FJd31Ytu",
+      "revision_folder": "1xvOoKP6NZ-wz7PEl7MktCIbQRCQkBw4X",
+      "rechazadas_folder": "1JQeDsXkl9o--yYZMMDDLIEG43Z6_RzfB"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520004",
+      "account_name": "Tarjeta Bankinter Azahara 4476",
+      "folder_id": "170zDd0PcAbBBOnBx3ZdLghpSzJMsXjDq",
+      "contabilizado_folder": "1jyF2n3kAUdvyyVqjXD2zV_1zv66KGeh_",
+      "revision_folder": "1X8i9XvoTGSsQ7l0V7Js6t95yQM1EXln_",
+      "rechazadas_folder": "1nQ7FiMvdWYpph6Syf42FGGYhO-51CMjZ"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520007",
+      "account_name": "Tarjeta Bankinter Javier 2131",
+      "folder_id": "1MMfcJzX8yGPgiSiankwqkVS0P9_QKzJF",
+      "contabilizado_folder": "1b_7v0B-G6-YrpaTh5SnnGIeemvHdbuNa",
+      "revision_folder": "1N-MbpMMgp2TThu2OwX0FdVZaVHDHeMV4",
+      "rechazadas_folder": "1mxlExh_UG4fQh3zJcPBJ-y-doTvkwBaL"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520008",
+      "account_name": "Tarjeta Bankinter Jesús 9842",
+      "folder_id": "1L-oa94S_aE19MnTFBlngaOnDyxUJL6vg",
+      "contabilizado_folder": "1nfPlToEUxECDq2jddpXQUWEkDWHMOxGO",
+      "revision_folder": "1VjpnjjE4U17xYnAWmqqw_FqO6CNW9fkm",
+      "rechazadas_folder": "1UnFChY_cteNCsYGQazQS-d_8O6Vtn1h3"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520013",
+      "account_name": "Tarjeta Bankinter Juan Gil 0010",
+      "folder_id": "14x7kaVXrxt6mpSfoiTZgJBQd79mDEYRh",
+      "contabilizado_folder": "1XFarnQCVjlQDMY0xEOJY-7CPA_j3RDzu",
+      "revision_folder": "1V8-WUU0MEgq_uBXwBtjm1pXRTLVzEL6m",
+      "rechazadas_folder": "1inea5w9Eiwl_OKssaG3IpQqksdCv7y62"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520022",
+      "account_name": "Tarjeta Bankinter Bárbara 3840",
+      "folder_id": "1sCO9R8r2Yro02NZEKLnD-gtuQFTNYeMZ",
+      "contabilizado_folder": "1n-zI7TMiwgPgm-aW-8b75KDhaaiEnLwo",
+      "revision_folder": "1NzweLjeYWl4t4mAPKjmLf0gWYh_172ug",
+      "rechazadas_folder": "1t8ShpN8lBVp3pH-vY7ZNC0bOvC53Pbo5"
+    },
+    {
+      "sigla": "BIO",
+      "company_id": 9,
+      "account_code": "520023",
+      "account_name": "Tarjeta Bankinter Victor Cebrián 7501",
+      "folder_id": "1oND3MRANAVuPkURwY3SKzb0Yrs9ZCYF9",
+      "contabilizado_folder": "1CAECIq5wG9CgZKyz22ozCk59TuMtb0o8",
+      "revision_folder": "13awDsssYTM0HVoVc8AQTc7fR7iKv0L4E",
+      "rechazadas_folder": "1wt9bGM9o3kX-nJFXfrwt00zoYrPrZMdz"
+    }
+  ]
+}

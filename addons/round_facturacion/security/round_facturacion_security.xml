@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- Categoría de grupos Round -->
+        <record id="module_category_round_facturacion" model="ir.module.category">
+            <field name="name">Round Facturación</field>
+            <field name="description">Gestión del módulo de facturación Round/Best Training</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <!-- Grupo: usuario básico (lectura) -->
+        <record id="group_round_user" model="res.groups">
+            <field name="name">Round Facturación / Usuario</field>
+            <field name="category_id" ref="module_category_round_facturacion"/>
+            <field name="comment">Acceso de lectura a clientes, suscripciones, recibos.</field>
+        </record>
+
+        <!-- Grupo: gestor (lectura + escritura + acciones) -->
+        <record id="group_round_manager" model="res.groups">
+            <field name="name">Round Facturación / Gestor</field>
+            <field name="category_id" ref="module_category_round_facturacion"/>
+            <field name="implied_ids" eval="[(4, ref('group_round_user'))]"/>
+            <field name="comment">Gestión completa de catálogo, suscripciones, modificaciones y pasarelas.</field>
+        </record>
+
+    </data>
+</odoo>

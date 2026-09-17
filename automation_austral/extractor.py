@@ -32,6 +32,7 @@ import argparse
 import base64
 import io
 import json
+import re
 import logging
 import os
 import subprocess
@@ -106,7 +107,7 @@ Common fields (always include):
 - extraction_notes (string): any doubt, assumption, OCR ambiguity, or relevant remark for the human reviewer.
 
 Special fields by document_type (optional but useful):
-- For "nomina": REQUIRED include "extra": {{"irpf_total": <number>, "ss_empleado_total": <number>, "aportaciones_empresa_total": <number>, "base_contingencias_comunes_total": <number>, "salario_especie_total": <number>, "liquido_total": <number>, "period": "YYYY-MM", "employees": [{{"name": "...", "nif": "...", "bruto": <number>, "irpf": <number>, "ss": <number>, "salario_especie": <number>, "liquido": <number>, "base_contingencias_comunes": <number>, "base_cc_empresa": <number>, "base_at_ep": <number>, "cuota_cc_empresa": <number>, "cuota_at_empresa": <number>, "cuota_desempleo_empresa": <number>, "cuota_fp_empresa": <number>, "cuota_fogasa_empresa": <number>, "ss_empresa_total": <number>, "tipo_contrato": "indefinido"|"temporal"}}]}}. aportaciones_empresa_total is the SUM across all payslips of the FULL company SS contributions (contingencias comunes empresa + desempleo empresa + FOGASA + formación profesional + AT/EP). Typically ~30% of bruto total. IMPORTANT: do NOT confuse with base_contingencias_comunes or base_accidente — those are BASES (calculation amounts), not contributions; never sum them. base_contingencias_comunes is per employee the base used for the CC retention (usually equals bruto but can differ slightly when there are non-cotizable concepts). salario_especie (also called "salario en especie" or "retribucion en especie") represents non-cash compensation — for socios/administradores it usually equals their autonomo cuota that the company pays. Default to 0 if not present. The arithmetic: subtotal (= sum of brutos including salario_especie) - tax_total (= irpf_total + ss_empleado_total) = total (= liquido_total). NOTE the salario_especie does NOT enter the liquido (it is not cash), but it IS included in the bruto for tax purposes. The "lines" array must contain ONE entry per employee with description="Nomina <nombre> <NIF> bruto <bruto> liquido <liquido>", amount=bruto, tax_rate=0.
+- For "nomina": REQUIRED include "extra": {{"irpf_total": <number>, "ss_empleado_total": <number>, "aportaciones_empresa_total": <number>, "base_contingencias_comunes_total": <number>, "salario_especie_total": <number>, "otras_deducciones_total": <number>, "liquido_total": <number>, "period": "YYYY-MM", "employees": [{{"name": "...", "nif": "...", "bruto": <number>, "irpf": <number>, "ss": <number>, "salario_especie": <number>, "otras_deducciones": <number>, "liquido": <number>, "base_contingencias_comunes": <number>, "base_cc_empresa": <number>, "base_at_ep": <number>, "cuota_cc_empresa": <number>, "cuota_at_empresa": <number>, "cuota_desempleo_empresa": <number>, "cuota_fp_empresa": <number>, "cuota_fogasa_empresa": <number>, "ss_empresa_total": <number>, "tipo_contrato": "indefinido"|"temporal"}}]}}. aportaciones_empresa_total is the SUM across all payslips of the FULL company SS contributions (contingencias comunes empresa + desempleo empresa + FOGASA + formación profesional + AT/EP). Typically ~30% of bruto total. IMPORTANT: do NOT confuse with base_contingencias_comunes or base_accidente — those are BASES (calculation amounts), not contributions; never sum them. base_contingencias_comunes is per employee the base used for the CC retention (usually equals bruto but can differ slightly when there are non-cotizable concepts). salario_especie (also called "salario en especie" or "retribucion en especie") represents non-cash compensation — for socios/administradores it usually equals their autonomo cuota that the company pays. Default to 0 if not present. The arithmetic: subtotal (= sum of brutos including salario_especie) - tax_total (= irpf_total + ss_empleado_total) - otras_deducciones_total = total (= liquido_total). otras_deducciones = deducciones de la nomina que NO son IRPF ni SS (anticipos, embargos, prestamos): estan en la columna DEDUCCION del recibo pero no son cuotas SS ni retencion IRPF. Default 0. NOTE the salario_especie does NOT enter the liquido (it is not cash), but it IS included in the bruto for tax purposes. The "lines" array must contain ONE entry per employee with description="Nomina <nombre> <NIF> bruto <bruto> liquido <liquido>", amount=bruto, tax_rate=0.
 - For "irpf_payment": include "extra": {{"modelo": "111"|"115"|"130"|"190"|"216", "ejercicio": "YYYY", "periodo": "1T"|"2T"|"3T"|"4T"|"01"|...}}
 - For "ss_payment": include "extra": {{"periodo": "YYYY-MM", "ccc": "..."}}
 
@@ -114,6 +115,8 @@ Rules:
 - Read tax rates AS PRINTED. Spain has 21/10/4/0. For nominas/irpf/ss, tax_rate is normally 0.
 - Confidence: 1.0 = clear PDF nativo; 0.7-0.9 = minor doubts; <0.7 = ambiguous; 0.6 = had to assume IVA rate.
 - subtotal + tax_total - irpf_amount must equal total within 0.05 EUR (irpf_amount=0 when there is no retention). If not, write values as printed and note discrepancy.
+- VAT-INCLUDED documents (tickets / facturas simplificadas where prices already include IVA): `lines[].amount` MUST be the BASE (sin IVA) so the sum of line amounts equals `subtotal` (base imponible). Read the base from the totals block ("Importe imponible" / "Base imponible" / "Imponible" / "TOTAL BI"). If only the IVA-inclusive total is legible, derive base = round(total/(1+rate), 2) and tax_total = round(total - base, 2). NEVER put IVA-inclusive amounts in `lines` when `subtotal` is the base.
+- BLURRY or incomplete scans: if the per-line detail is illegible or does not add up, but the TOTALS block (Base/IVA/Total or "DESGLOSE TOTALES: TOTAL BI / TOTAL IVA / TOTAL") IS legible, TRUST the totals block — output a SINGLE summary line with amount=`subtotal` (base) and the correct tax_rate instead of itemizing.
 - IRPF retention (retención IRPF / I.R.P.F. / Retención): very common in alquileres (rentals, 19%) and servicios profesionales (15%, or 7% for new professionals). When present the printed TOTAL is LOWER than base+IVA because the retention is subtracted. Set irpf_rate and irpf_amount (positive). The "lines" still sum to subtotal (base imponible) and their tax_rate is the IVA rate, NOT the retention.
 - For nominas: "total" is the net paid (liquido). subtotal = bruto. tax_total = retenciones (irpf+ss empleado).
 - For irpf payments: "total" is the amount paid to AEAT. subtotal = total, tax_total = 0.
@@ -123,24 +126,68 @@ Output: a SINGLE JSON object. Nothing else.
 """
 
 
-def _run_claude(file_path: Path, company: dict, hint: str = None) -> dict:
+def cargar_reglas(company, upload_id=None):
+    """Reglas de contabilizacion del revisor (tabla regla_asiento del app.db web).
+
+    scope='documento' (por defecto): solo se inyectan en SU subida (upload_id).
+    scope='proveedor': se inyectan SIEMPRE, limitadas a la EMPRESA de este
+    pipeline (match por VAT); el texto nombra al proveedor y el extractor solo
+    las aplica si el documento es de ese proveedor."""
+    import sqlite3
+    db = os.path.join(os.getenv("AUSTRAL_BACKEND", "/opt/austral-contab-web/backend"), "data", "app.db")
+    try:
+        vat = str(company.get("vat") or "").upper()
+        alt = vat[2:] if vat.startswith("ES") else "ES" + vat
+        con = sqlite3.connect(db)
+        row = con.execute("SELECT id FROM empresa WHERE upper(vat) IN (?, ?)", (vat, alt)).fetchone()
+        emp_id = row[0] if row else -1
+        if upload_id:
+            rows = con.execute(
+                "SELECT texto, imagen_path FROM regla_asiento WHERE activa=1 AND "
+                "(upload_id=? OR (scope='proveedor' AND (empresa_id IS NULL OR empresa_id=?))) ORDER BY id",
+                (int(upload_id), emp_id)).fetchall()
+        else:
+            rows = con.execute(
+                "SELECT texto, imagen_path FROM regla_asiento WHERE activa=1 AND "
+                "scope='proveedor' AND (empresa_id IS NULL OR empresa_id=?) ORDER BY id",
+                (emp_id,)).fetchall()
+        con.close()
+        return [{"texto": t, "imagen": i} for t, i in rows if (t or "").strip()]
+    except Exception as e:  # noqa: BLE001 - sin reglas no se bloquea el proceso
+        log.warning(f"no se pudieron cargar las reglas: {e}")
+        return []
+
+
+
+def _run_claude(file_path: Path, company: dict, hint: str = None, rules: list = None) -> dict:
     prompt = PROMPT.format(
         company_name=company["name"],
         company_vat=company["vat"],
         file_path=file_path.name,
     )
+    extra_dirs = []
+    if rules:
+        prompt += ("\n\nREVIEWER ACCOUNTING RULES (human instructions - they take PRECEDENCE over the"
+                   " defaults above. Apply each rule ONLY if this document matches what it describes:"
+                   " rules naming a specific supplier apply only to that supplier's documents):\n")
+        for _r in rules:
+            _linea = "- " + str(_r.get("texto") or "").strip()
+            _img = _r.get("imagen")
+            if _img and Path(_img).exists():
+                _linea += f" (reference image - READ it: {_img})"
+                extra_dirs.append(str(Path(_img).parent))
+            prompt += _linea + "\n"
     if hint:
         prompt += ("\n\nNOTA DEL REVISOR (instruccion humana, tenla MUY en cuenta para corregir la "
                    "extraccion; p.ej. NIF correcto, base imponible, tipo de documento): " + str(hint) + "\n")
     log.info(f"  invoking claude for {file_path.name}")
+    cmd = [CLAUDE_BIN, "-p", prompt, "--output-format", "text",
+           "--permission-mode", "bypassPermissions", "--add-dir", str(file_path.parent)]
+    for _d in sorted(set(extra_dirs)):
+        cmd += ["--add-dir", _d]
     try:
         result = subprocess.run(
-            [
-                CLAUDE_BIN, "-p", prompt,
-                "--output-format", "text",
-                "--permission-mode", "bypassPermissions",
-                "--add-dir", str(file_path.parent),
-            ],
+            cmd,
             capture_output=True, text=True, timeout=CLAUDE_TIMEOUT,
             cwd=str(file_path.parent),
             env={**os.environ, "HOME": os.environ.get("HOME", "/opt/odoo17")},
@@ -199,11 +246,23 @@ def _validate(payload: dict) -> str | None:
         if doc_type == "nomina":
             extra = payload.get("extra") or {}
             especie = round(float(extra.get("salario_especie_total") or 0), 2)
-            if abs((sub - tax - especie) - tot) > TOLERANCE:
-                return f"math mismatch nomina: bruto({sub})-tax({tax})-especie({especie})!=liquido({tot})"
+            otras = round(float(extra.get("otras_deducciones_total") or 0), 2)
+            if abs((sub - tax - especie - otras) - tot) > TOLERANCE:
+                return f"math mismatch nomina: bruto({sub})-tax({tax})-especie({especie})-otras({otras})!=liquido({tot})"
         else:
-            if abs(sub + tax - tot) > TOLERANCE:
-                return f"math mismatch: {sub}+{tax}!={tot}"
+            irpf = round(float(payload.get("irpf_amount") or 0), 2)
+            if irpf <= 0 and abs(sub + tax - tot) > TOLERANCE:
+                # FAC13: inferir retencion IRPF si el descuadre coincide con un tipo estandar
+                diff = round(sub + tax - tot, 2)
+                if diff > 0 and sub > 0:
+                    for rate in (19.0, 15.0, 7.0, 2.0, 1.0):
+                        if abs(diff - round(sub * rate / 100.0, 2)) <= 0.05:
+                            payload["irpf_rate"] = rate
+                            payload["irpf_amount"] = diff
+                            irpf = diff
+                            break
+            if abs(sub + tax - irpf - tot) > TOLERANCE:
+                return f"math mismatch: {sub}+{tax}-irpf({irpf})!={tot}"
     except (TypeError, ValueError) as e:
         return f"invalid numbers: {e}"
     return None
@@ -291,6 +350,27 @@ def _process_bank(file_path: Path) -> tuple[int, str, str]:
 
 
 def _process_sepa(file_path: Path) -> tuple[int, str, str]:
+    # No existe importador SEPA (pain.001 = orden de pago saliente; pain.008 = remesa
+    # de adeudos). Estos ficheros NO son documentos contables: son la ejecucion en banco
+    # de facturas/nominas ya asentadas y se concilian en el extracto bancario. Antes esto
+    # crasheaba con "can't open file sepa_xml_importer.py"; ahora se rechaza con motivo claro.
+    import os as _os, re as _re
+    if not _os.path.exists(SEPA_IMPORTER):
+        tipo = "SEPA"
+        try:
+            head = file_path.read_text(errors="ignore")[:2000]
+            m = _re.search(r"pain\.(\d{3}\.\d{3}\.\d{2})", head)
+            if m:
+                code = m.group(1)
+                suf = (" (orden de pago saliente)" if code.startswith("001")
+                       else " (remesa de adeudos)" if code.startswith("008") else "")
+                tipo = "pain." + code + suf
+        except Exception:
+            pass
+        msg = ("Fichero " + tipo + ": no es un documento contable. Es la orden de pago / "
+               "remesa que ejecuta en banco facturas o nominas ya contabilizadas; se concilia "
+               "en el extracto bancario, no se asienta como documento.")
+        return 2, "", msg
     cmd = [ODOO_PYTHON, SEPA_IMPORTER, "--file", str(file_path)]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
     return result.returncode, result.stdout, result.stderr
@@ -411,7 +491,7 @@ def process_company(svc, cfg: dict) -> dict:
             target = local
             if ext == ".heic":
                 target = _convert_heic(local)
-            payload = _run_claude(target, cfg)
+            payload = _run_claude(target, cfg, rules=cargar_reglas(cfg))
             err = _validate(payload)
             if err:
                 stats["fail"] += 1
@@ -472,7 +552,7 @@ def process_company(svc, cfg: dict) -> dict:
     return stats
 
 
-def process_local_file(file_path: Path, cfg: dict, hint: str = None) -> dict:
+def process_local_file(file_path: Path, cfg: dict, hint: str = None, upload_id=None) -> dict:
     """Procesa un solo archivo LOCAL (no en Drive). Devuelve dict con resultado.
 
     Modos de retorno:
@@ -523,7 +603,7 @@ def process_local_file(file_path: Path, cfg: dict, hint: str = None) -> dict:
                     "reason": f"bank rc={rc}: {(err_text + out)[-400:]}"}
 
         # kind == "invoice"
-        payload = _run_claude(file_path, cfg, hint=hint)
+        payload = _run_claude(file_path, cfg, hint=hint, rules=cargar_reglas(cfg, upload_id=upload_id))
         if "error" in payload and not payload.get("supplier_vat"):
             return {"status": "failed", "classification": "invoice", "reason": payload.get("error", "claude failed")}
 
@@ -557,6 +637,15 @@ def process_local_file(file_path: Path, cfg: dict, hint: str = None) -> dict:
             return {"status": status, "classification": "invoice",
                     "odoo_move_id": move_id, "odoo_move_name": move_name,
                     "reason": "OK"}
+        if rc == 20:
+            # duplicado: la factura YA existe — es exito informativo, no fallo
+            mid = None
+            m20 = re.search(r"INVOICE_ID=(\d+)", out or "")
+            if m20:
+                mid = int(m20.group(1))
+            return {"status": "duplicate", "classification": "invoice",
+                    "odoo_move_id": mid, "odoo_move_name": None,
+                    "reason": f"ya estaba contabilizada (move id={mid})"}
         if rc == 30:
             return {"status": "failed", "classification": "invoice",
                     "reason": f"orm rc=30 (validation): {(err_text + out)[-400:]}"}
@@ -586,7 +675,7 @@ def main():
         if not cfg:
             print(json.dumps({"status": "failed", "reason": "no company config"}))
             sys.exit(2)
-        result = process_local_file(Path(args.local_file), cfg, hint=args.hint)
+        result = process_local_file(Path(args.local_file), cfg, hint=args.hint, upload_id=args.web_upload_id)
         if args.web_upload_id:
             result["upload_id"] = int(args.web_upload_id)
         print(json.dumps(result, ensure_ascii=False, default=str))

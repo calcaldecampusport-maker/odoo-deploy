@@ -57,6 +57,41 @@ log = logging.getLogger("bank_multi_reconciler")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
+# --- Guard de coherencia (2026-07-19): el subset-sum por importe produce casados
+# absurdos si no se exige relación entre el concepto del banco y el subset
+# (TGSS vs cobros de socios, Costa Luz vs Mercadona, Acciona vs liquidaciones TPV).
+ACCOUNT_KEYWORDS = {
+    "475100": ("IRPF", "AEAT", "MODELO 111", "RETENCION", "H.P.", "HACIENDA"),
+    "476000": ("TGSS", "SEG. SOCIAL", "SEGURIDAD SOCIAL", "COTIZACION", "CUOTA"),
+    "465000": ("NOMINA", "REMESA DE TRANSFERENCIAS", "SALARIO"),
+}
+_GENERIC_NAME_TOKENS = {"S.L.", "S.A.", "S.L.U.", "S.A.U.", "SL", "SA", "SLU", "SAU",
+                        "THE", "AND", "GRUPO", "GROUP", "ESPANA", "IBERIA", "2000"}
+
+
+def _norm_txt(t):
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(t or ""))
+    return "".join(c for c in t if unicodedata.category(c) != "Mn").upper()
+
+
+def _subset_coherente(acc_code, bank_ref, subset) -> bool:
+    """True si el subset es plausible para este movimiento de banco."""
+    ref = _norm_txt(bank_ref)
+    kws = ACCOUNT_KEYWORDS.get(acc_code)
+    if kws:
+        # cuentas agregadoras de impuestos/SS/nominas: el concepto debe delatarlo
+        return any(_norm_txt(k) in ref for k in kws)
+    # cuentas de tercero (410x/430x/...): subset de UN solo partner (no nulo)
+    # y al menos un token significativo de su nombre en el concepto del banco
+    partners = {a.partner_id.id if a.partner_id else None for a in subset}
+    if len(partners) != 1 or None in partners:
+        return False
+    name = _norm_txt(subset[0].partner_id.name).replace(",", " ").replace(".", " ")
+    tokens = [w for w in name.split() if len(w) >= 4 and w not in _GENERIC_NAME_TOKENS]
+    return any(t in ref for t in tokens)
+
+
 def _find_subset(amls_with_amounts, target: float, tolerance: float):
     """Find a subset of amls whose summed amount ≈ target within tolerance.
     Returns list of AMLs (ids) or None. Picks shortest-first.
@@ -159,6 +194,10 @@ def process_company(env, cid: int, tolerance: float, dry_run: bool) -> dict:
                 continue
             subset = _find_subset(relevant, target_amount, tolerance)
             if subset and len(subset) >= 2:
+                if not _subset_coherente(acc.code, bl.payment_ref, subset):
+                    log.info(f"  subset por importe DESCARTADO (incoherente) line {bl.id} "
+                             f"({bl.amount:.2f}) vs {acc.code} [{len(subset)}]")
+                    continue
                 match_result = (acc, subset)
                 break
 

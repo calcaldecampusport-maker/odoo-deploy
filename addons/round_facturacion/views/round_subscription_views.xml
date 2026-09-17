@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_round_subscription_tree" model="ir.ui.view">
+        <field name="name">round.subscription.tree</field>
+        <field name="model">round.subscription</field>
+        <field name="arch" type="xml">
+            <tree string="Suscripciones" decoration-success="estado=='activa'"
+                                          decoration-warning="estado=='suspendida'"
+                                          decoration-muted="estado in ('cancelada','borrador')">
+                <field name="partner_id"/>
+                <field name="cuota_id"/>
+                <field name="trainer_analytic_id"/>
+                <field name="periodicidad"/>
+                <field name="forma_pago"/>
+                <field name="importe_efectivo" widget="monetary"/>
+                <field name="estado" widget="badge"
+                       decoration-success="estado=='activa'"
+                       decoration-warning="estado=='suspendida'"
+                       decoration-danger="estado=='cancelada'"/>
+                <field name="fecha_inicio"/>
+                <field name="invoice_count"/>
+                <field name="currency_id" invisible="1"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_round_subscription_form" model="ir.ui.view">
+        <field name="name">round.subscription.form</field>
+        <field name="model">round.subscription</field>
+        <field name="arch" type="xml">
+            <form string="Suscripción">
+                <header>
+                    <button name="action_activar"  string="Activar"  type="object"
+                            class="btn-primary" invisible="estado != 'borrador'"/>
+                    <button name="action_suspender" string="Suspender" type="object"
+                            class="btn-warning" invisible="estado != 'activa'"/>
+                    <button name="action_reactivar" string="Reactivar" type="object"
+                            class="btn-primary" invisible="estado != 'suspendida'"/>
+                    <button name="action_cancelar" string="Cancelar" type="object"
+                            invisible="estado in ('cancelada',)"
+                            confirm="¿Seguro que quieres cancelar esta suscripción?"/>
+                    <field name="estado" widget="statusbar"
+                           statusbar_visible="borrador,activa,suspendida,cancelada"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_invoices" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o">
+                            <field name="invoice_count" widget="statinfo" string="Recibos"/>
+                        </button>
+                    </div>
+                    <h1><field name="display_name" readonly="1"/></h1>
+                    <group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="cuota_id"/>
+                            <field name="trainer_analytic_id"/>
+                            <field name="periodicidad"/>
+                        </group>
+                        <group>
+                            <field name="forma_pago"/>
+                            <field name="mandate_id" invisible="forma_pago != 'sepa'"
+                                   required="forma_pago == 'sepa'"
+                                   domain="[('partner_id','=',partner_id),('state','=','valid')]"/>
+                            <field name="token_tarjeta" invisible="forma_pago != 'tarjeta_token'"/>
+                            <field name="pasarela_id" invisible="forma_pago == 'sepa'"/>
+                            <field name="fecha_inicio"/>
+                            <field name="fecha_fin"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="descuentos_activos_ids" widget="many2many_tags"/>
+                    </group>
+                    <group string="Importes" col="3">
+                        <field name="importe_base" widget="monetary"/>
+                        <field name="importe_descuentos" widget="monetary"/>
+                        <field name="importe_efectivo" widget="monetary"/>
+                        <field name="currency_id" invisible="1"/>
+                    </group>
+                    <notebook>
+                        <page string="Modificaciones">
+                            <field name="modificacion_ids">
+                                <tree>
+                                    <field name="fecha_desde"/>
+                                    <field name="fecha_hasta"/>
+                                    <field name="tipo"/>
+                                    <field name="valor" widget="monetary"/>
+                                    <field name="razon"/>
+                                    <field name="estado"/>
+                                    <field name="currency_id" invisible="1"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Recibos">
+                            <field name="invoice_ids" readonly="1">
+                                <tree>
+                                    <field name="name"/>
+                                    <field name="invoice_date"/>
+                                    <field name="amount_total"/>
+                                    <field name="payment_state"/>
+                                    <field name="state"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Otros datos">
+                            <group>
+                                <field name="id_noofit_subscription"/>
+                                <field name="company_id" groups="base.group_multi_company"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_round_subscription" model="ir.actions.act_window">
+        <field name="name">Suscripciones</field>
+        <field name="res_model">round.subscription</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+</odoo>

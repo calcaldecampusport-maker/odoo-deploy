@@ -153,6 +153,29 @@ def _normalize_iva_included_lines(data: dict) -> bool:
         return False
 
 
+def _infer_irpf_retention(data: dict) -> bool:
+    """Fallback determinista FAC13: si no viene irpf_amount pero el descuadre
+    base+IVA-total coincide con un tipo de retencion estandar (19/15/7/2/1 %)
+    sobre la base, infiere irpf_rate/irpf_amount. Conservador (tolerancia 0.05)."""
+    try:
+        if float(data.get("irpf_amount") or 0) > 0:
+            return False
+        sub = round(float(data["subtotal"]), 2)
+        tax = round(float(data["tax_total"]), 2)
+        tot = round(float(data["total"]), 2)
+        diff = round(sub + tax - tot, 2)
+        if diff <= 0 or sub <= 0:
+            return False
+        for rate in (19.0, 15.0, 7.0, 2.0, 1.0):
+            if abs(diff - round(sub * rate / 100.0, 2)) <= 0.05:
+                data["irpf_rate"] = rate
+                data["irpf_amount"] = diff
+                return True
+        return False
+    except Exception:
+        return False
+
+
 def validate_payload(data: dict) -> list[str]:
     errors = []
     required = ["supplier_name", "supplier_vat", "invoice_ref", "invoice_date",
@@ -242,6 +265,30 @@ def _ensure_payable_account(env, partner, company_id):
     partner.property_account_payable_id = new_acc.id
 
 
+def _safe_create_partner(env, name, vat, default_country_id):
+    """Crea el proveedor. Si Odoo rechaza el VAT (check_vat: extranjeros US/EU o
+    CIF mal escaneado), lo crea SIN vat guardando el valor crudo en 'comment',
+    para que la factura se contabilice igualmente. Infiere pais del prefijo VAT."""
+    country_id = default_country_id
+    try:
+        if vat and len(vat) >= 2 and vat[:2].isalpha():
+            c = env["res.country"].search([("code", "=", vat[:2].upper())], limit=1)
+            if c:
+                country_id = c.id
+    except Exception:
+        pass
+    base = {"name": name or "Proveedor sin nombre", "is_company": True,
+            "supplier_rank": 1, "country_id": country_id, "company_id": False}
+    if vat:
+        try:
+            with env.cr.savepoint():
+                return env["res.partner"].create({**base, "vat": vat})
+        except Exception as e:
+            log.warning(f"  VAT {vat!r} rechazado por Odoo ({str(e)[:80]}); creo proveedor SIN vat (guardado en nota)")
+            base["comment"] = f"VAT sin validar (rechazado por Odoo al alta automatica): {vat}"
+    return env["res.partner"].create(base)
+
+
 def find_or_create_supplier(env, data: dict):
     # Apply learned vat_correction rules BEFORE normalization so the partner gets the right VAT
     corrected, applied = _maybe_correct_vat(env, data.get("supplier_name",""), data.get("supplier_vat",""))
@@ -256,14 +303,7 @@ def find_or_create_supplier(env, data: dict):
         return partner
 
     es = env.ref("base.es", raise_if_not_found=False)
-    return env["res.partner"].create({
-        "name": data["supplier_name"],
-        "vat": vat,
-        "is_company": True,
-        "supplier_rank": 1,
-        "country_id": es.id if es else False,
-        "company_id": False,  # shared across companies
-    })
+    return _safe_create_partner(env, data["supplier_name"], vat, es.id if es else False)
 
 
 def find_purchase_tax(env, rate: float, company_id: int):
@@ -329,14 +369,35 @@ def find_purchase_journal(env, company_id: int):
     )
 
 
-def already_exists(env, partner_id: int, ref: str, date: str, company_id: int):
-    return env["account.move"].search([
-        ("move_type", "=", "in_invoice"),
+def already_exists(env, partner_id: int, ref: str, date: str, company_id: int, total=None):
+    # 1) match exacto por partner+ref+fecha
+    m = env["account.move"].search([
+        ("move_type", "in", ["in_invoice", "in_refund"]),
         ("partner_id", "=", partner_id),
         ("ref", "=", ref),
         ("invoice_date", "=", date),
         ("company_id", "=", company_id),
+        ("state", "!=", "cancel"),
     ], limit=1)
+    if m:
+        return m
+    # 2) fallback cross-partner: mismo ref+fecha+importe con OTRO proveedor
+    #    (variante de nombre/VAT que creo un partner duplicado) -> evita doble asiento
+    if ref and total not in (None, ""):
+        try:
+            amt = round(abs(float(total)), 2)
+        except (TypeError, ValueError):
+            amt = None
+        if amt:
+            return env["account.move"].search([
+                ("move_type", "in", ["in_invoice", "in_refund"]),
+                ("ref", "=", ref),
+                ("invoice_date", "=", date),
+                ("company_id", "=", company_id),
+                ("amount_total", "=", amt),
+                ("state", "!=", "cancel"),
+            ], limit=1)
+    return env["account.move"]
 
 
 def attach_pdf(env, move, pdf_path: Path):
@@ -442,8 +503,29 @@ def process(env, data: dict, pdf_path: Path | None, company_id: int):
     supplier = find_or_create_supplier(env, data)
     log.info(f"supplier: id={supplier.id} name={supplier.name!r} vat={supplier.vat}")
 
-    existing = already_exists(env, supplier.id, data["invoice_ref"], data["invoice_date"], company_id)
+    if _os.environ.get("FORCE_NO_DEDUP") == "1":
+        # orden expresa del revisor desde la web ("no es duplicado"): se omite el
+        # chequeo — el motivo queda guardado como regla del proveedor
+        log.warning("FORCE_NO_DEDUP=1: chequeo de duplicado omitido por orden del revisor")
+        existing = None
+    else:
+        existing = already_exists(env, supplier.id, data["invoice_ref"], data["invoice_date"], company_id, data.get("total"))
     if existing:
+        # GUARD (2026-07-28, caso TX442/IONOS): si la ref coincide pero el IMPORTE
+        # difiere, NO es un duplicado silencioso — suele ser una factura CORREGIDA
+        # (o un fallo de OCR). Se rechaza con motivo claro para que quede VISIBLE
+        # en rechazados y el humano decida.
+        try:
+            _tot_nuevo = round(abs(float(data.get("total"))), 2)
+        except (TypeError, ValueError):
+            _tot_nuevo = None
+        if _tot_nuevo is not None and abs(abs(existing.amount_total) - _tot_nuevo) > 0.01:
+            log.warning(
+                f"posible duplicado con IMPORTE DISTINTO: move {existing.id} ({existing.name}) "
+                f"tiene {existing.amount_total} y el documento trae {_tot_nuevo} -> RECHAZADO para revision")
+            ref_doc = data.get("invoice_ref")
+            print(f"REASON=misma ref {ref_doc!r} que {existing.name} pero importe distinto ({existing.amount_total} vs {_tot_nuevo}): factura corregida u OCR — revisar a mano")
+            return 31
         log.warning(f"duplicate: account.move id={existing.id} already exists for company {company_id}")
         print(f"INVOICE_ID={existing.id}")
         print(f"DUPLICATE=1")
@@ -555,6 +637,8 @@ def main():
 
     if _normalize_iva_included_lines(data):
         log.info("lineas reescaladas a base neta (IVA incluido detectado en el ticket)")
+    if _infer_irpf_retention(data):
+        log.info(f"retencion IRPF inferida: rate={data.get('irpf_rate')} amount={data.get('irpf_amount')}")
     errors = validate_payload(data)
     if errors:
         log.error("validation failed:")

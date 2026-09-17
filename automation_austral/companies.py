@@ -3,16 +3,19 @@ NO contiene CARARJFAM ni BT — ese pipeline vive en /opt/automation_austral/ ap
 """
 
 
+
+
+
 # === pipeline metadata (auto-injected, NO BORRAR) ===
 PIPELINE_NAME = 'austral'
 DB_NAME = 'cararjfam_test'
-EXPECTED_VATS = frozenset(['B44821965'])
+EXPECTED_VATS = frozenset(['A39100573', 'B44821965'])
 # === end metadata ===
 
 COMPANIES = [
     {
         "name": "AUSTRAL",
-        "vat": "B44821965",
+        "vat": "A39100573",  # CIF real Odoo company 4 (antes B44821965, erroneo)
         "odoo_company_id": 4,
         "pending_folder": "1SNDTko-SgeYNjyJ-_635ObprBDVWm-Jd",   # Mi Odoo AUSTRAL (raiz)
         "queue_folder": "15kI9YEpo-Z1OngKAud1X2ZPnQgH4jI85",      # Cola_VPS
@@ -26,7 +29,7 @@ COMPANIES = [
     },
 ]
 
-DEFAULT_VAT = "B44821965"
+DEFAULT_VAT = "A39100573"
 
 COMPANIES_BY_VAT = {c["vat"]: c for c in COMPANIES}
 COMPANIES_BY_QUEUE = {c["queue_folder"]: c for c in COMPANIES}

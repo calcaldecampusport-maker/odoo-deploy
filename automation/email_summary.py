@@ -101,7 +101,7 @@ def _fetch_today(env, target_date: date) -> dict:
     try:
         import json as _json
         from pathlib import Path as _Path
-        run_file = _Path(f"/tmp/extractor_runs/{target_date.isoformat()}.json")
+        run_file = _Path(f"/tmp/extractor_runs_cararjfam/{target_date.isoformat()}.json")
         if run_file.exists():
             run = _json.loads(run_file.read_text())
             for st in (run.get("summary") or []):

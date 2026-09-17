@@ -19,12 +19,17 @@ PIPELINES = {
     "/opt/automation": {
         "pipeline_name": "cararjfam",
         "db_name": "cararjfam",
-        "expected_vats": ["B93653392", "B72349137"],
+        "expected_vats": ["B93653392"],
     },
     "/opt/automation_austral": {
         "pipeline_name": "austral",
         "db_name": "cararjfam_test",
         "expected_vats": ["B44821965"],
+    },
+    '/opt/automation_bt_round': {
+        'pipeline_name': 'bt_round',
+        'db_name': 'round_facturacion',
+        'expected_vats': ['B72349137'],
     },
 }
 

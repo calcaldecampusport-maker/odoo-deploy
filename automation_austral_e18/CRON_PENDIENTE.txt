@@ -1,0 +1,11 @@
+# Cron de AUSTRAL contra Odoo 18 Enterprise (company 12) — PREPARADO, NO ACTIVADO.
+# Para activarlo:  crontab -u odoo -e   y descomentar estas dos líneas.
+# Antes de activar, comprobar que el cron VIEJO de /opt/automation_austral sigue
+# desactivado, o los mismos documentos se contabilizarían en las dos contabilidades.
+#
+# cola del Drive — ACTIVADO 2026-08-11 (23:15 y 10:45, con flock):
+# 15 23 * * * cd /opt/austral-contab/backend && HOME=/opt/odoo17 flock -n /tmp/austral_e18_cola.lock ./venv/bin/python cron_cola_vps.py >> /var/log/austral-contab/cola.log 2>&1
+# 45 10 * * * cd /opt/austral-contab/backend && HOME=/opt/odoo17 flock -n /tmp/austral_e18_cola.lock ./venv/bin/python cron_cola_vps.py >> /var/log/austral-contab/cola.log 2>&1
+#
+# tarjetas (cuando estén creadas sus carpetas y tarjetas.json):
+# 20,50 * * * * cd /opt/automation_austral_e18 && HOME=/opt/odoo17 flock -n /tmp/austral_e18_tarjetas.lock /opt/automation/venv/bin/python /opt/automation_austral_e18/poller_tarjetas.py >> /var/log/austral-contab/tarjetas.log 2>&1

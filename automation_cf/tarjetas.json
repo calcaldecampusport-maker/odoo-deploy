@@ -1,0 +1,28 @@
+{
+  "_doc": "Tarjetas de crédito de MEDICAL CABLES S.L. Cada tarjeta = una carpeta del Drive («Mi Odoo Medical/tarjetas banco/<tarjeta>») con sus 3 subcarpetas de destino. account_code/account_name = cuenta 5200xx de la tarjeta en Odoo (medical_v18, company 1); el diario se resuelve por los últimos caracteres del nombre.",
+  "tarjetas_banco_folder": "1QskO1wtMQtLVzPl5sGErStE9ih3JhZEt",
+  "tarjetas": [
+    {
+      "sigla": "MC",
+      "company_id": 1,
+      "account_code": "52000006",
+      "account_name": "Tarjeta Bankinter Javi",
+      "label": "Javi",
+      "folder_id": "10kfwJAnNdwL3ACVzrrLtdFbunZjIW9Te",
+      "contabilizado_folder": "1-hPt7Kp2FMpcrE4oQR4NQCh2vnT5lzL1",
+      "revision_folder": "1kfgmRxITUpQSYOI8FFUV0d_3c6e3KFzW",
+      "rechazadas_folder": "1rgFIykHaV3eBjA0ESK35A8rQrESUgWki"
+    },
+    {
+      "sigla": "MC",
+      "company_id": 1,
+      "account_code": "52000005",
+      "account_name": "Tarjeta Bankinter Manolo",
+      "label": "Manolo",
+      "folder_id": "1FdlMERWf7rB98E8QEL5u2AXoFccGSsqE",
+      "contabilizado_folder": "12JsL2tpkPrnuXdA2PrY3fIvDxF3t9csq",
+      "revision_folder": "1Ed7RNiP7Ao2OCNPATlaT3-vAPhU452-3",
+      "rechazadas_folder": "15409HqVR9GhInDDsoJ8y2Faea9Bd-BxG"
+    }
+  ]
+}

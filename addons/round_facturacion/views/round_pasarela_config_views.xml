@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_round_pasarela_config_tree" model="ir.ui.view">
+        <field name="name">round.pasarela.config.tree</field>
+        <field name="model">round.pasarela.config</field>
+        <field name="arch" type="xml">
+            <tree string="Pasarelas de pago">
+                <field name="nombre"/>
+                <field name="analytic_id"/>
+                <field name="proveedor"/>
+                <field name="fuc"/>
+                <field name="terminal"/>
+                <field name="sandbox" widget="boolean_toggle"/>
+                <field name="activo" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_round_pasarela_config_form" model="ir.ui.view">
+        <field name="name">round.pasarela.config.form</field>
+        <field name="model">round.pasarela.config</field>
+        <field name="arch" type="xml">
+            <form string="Configuración pasarela">
+                <sheet>
+                    <widget name="web_ribbon" title="SANDBOX" bg_color="bg-warning"
+                            invisible="not sandbox"/>
+                    <widget name="web_ribbon" title="Inactivo" bg_color="bg-danger"
+                            invisible="activo"/>
+                    <group>
+                        <group>
+                            <field name="nombre"/>
+                            <field name="analytic_id" options="{'no_create': True}"/>
+                            <field name="proveedor"/>
+                        </group>
+                        <group>
+                            <field name="sandbox"/>
+                            <field name="activo"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Credenciales">
+                        <group>
+                            <field name="fuc"/>
+                            <field name="terminal"/>
+                        </group>
+                        <group>
+                            <field name="secret_key" password="True"/>
+                            <field name="merchant_url"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_round_pasarela_config" model="ir.actions.act_window">
+        <field name="name">Pasarelas de pago</field>
+        <field name="res_model">round.pasarela.config</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay pasarelas configuradas</p>
+            <p>Cada trainer/centro puede tener sus propias credenciales Redsys/Paycomet.<br/>
+               Crea una entrada por cada combinación de trainer + proveedor.</p>
+        </field>
+    </record>
+
+</odoo>

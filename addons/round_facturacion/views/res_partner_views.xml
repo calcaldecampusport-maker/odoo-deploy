@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Extender la ficha de cliente con campos Round -->
+    <record id="view_partner_form_round" model="ir.ui.view">
+        <field name="name">res.partner.form.round</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Botón de suscripciones en la parte superior -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_subscriptions" type="object"
+                        class="oe_stat_button" icon="fa-id-card-o"
+                        invisible="round_subscription_count == 0">
+                    <field name="round_subscription_count" widget="statinfo" string="Suscripciones"/>
+                </button>
+            </xpath>
+
+            <!-- Pestaña Round Facturación -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Round Facturación" name="round_facturacion">
+                    <group>
+                        <group>
+                            <field name="id_noofit"/>
+                            <field name="trainer_analytic_id"/>
+                        </group>
+                        <group>
+                            <field name="estado_facturacion"/>
+                            <field name="fecha_baja_facturacion"
+                                   invisible="estado_facturacion != 'baja'"/>
+                        </group>
+                    </group>
+                    <field name="round_subscription_ids" readonly="1">
+                        <tree>
+                            <field name="cuota_id"/>
+                            <field name="periodicidad"/>
+                            <field name="forma_pago"/>
+                            <field name="estado"/>
+                            <field name="importe_efectivo" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

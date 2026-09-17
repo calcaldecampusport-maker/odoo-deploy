@@ -14,9 +14,9 @@ if _HERE not in _sys.path:
     _sys.path.insert(0, _HERE)
 try:
     import companies as _comp_guard
-    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'austral':
+    if getattr(_comp_guard, "PIPELINE_NAME", None) != 'cararjfam':
         raise RuntimeError(
-            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='austral' "
+            f"PIPELINE_MISMATCH: script {__file__} expected pipeline='cararjfam' "
             f"but loaded companies.PIPELINE_NAME={getattr(_comp_guard, 'PIPELINE_NAME', None)!r}"
         )
 except ImportError:
@@ -131,7 +131,7 @@ def build():
          "IONOS Ubuntu 24.04, IP 212.227.40.122, dominios erp.carajfam.com (prod) y demo.carajfam.com (test/austral). SSH como root con clave ed25519 en ~/.ssh/odoo_carajfam (PasswordAuthentication off, fail2ban activo). Odoo 17 en /opt/odoo17/odoo, config /etc/odoo17.conf, data_dir /opt/odoo17/.local/share/Odoo. Custom addon learned_rules en /opt/odoo17/custom-addons/. Master Odoo BD: ver admin_passwd en odoo17.conf."),
 
         ("Patron critico - dos venvs",
-         "NUNCA mezclar libs en el mismo venv: /opt/odoo17/venv (Odoo + psycopg2 + pyOpenSSL 21) vs /opt/automation_austral/venv (Google API + pandas + openpyxl + xlrd + csb43). Instalar google-api-python-client en el venv de Odoo rompe pyOpenSSL.X509StoreFlags y tumba Odoo. Los scripts se comunican entre venvs por JSON en /tmp + subprocess (dudas_apply.py llama a dudas_apply_odoo.py)."),
+         "NUNCA mezclar libs en el mismo venv: /opt/odoo17/venv (Odoo + psycopg2 + pyOpenSSL 21) vs /opt/automation/venv (Google API + pandas + openpyxl + xlrd + csb43). Instalar google-api-python-client en el venv de Odoo rompe pyOpenSSL.X509StoreFlags y tumba Odoo. Los scripts se comunican entre venvs por JSON en /tmp + subprocess (dudas_apply.py llama a dudas_apply_odoo.py)."),
 
         ("Pipeline diaria (cron user odoo, hora Madrid)",
          "23:23 learning_drive (descarga reglas CSV de Drive) -> 23:25 learning (importa reglas + scan pasivo facturas posted) -> 23:30 extractor (LLM clasifica PDFs y enruta) -> 23:35 poller (legacy, idle) -> 23:36 dudas_apply (lee xlsx tu_decision, ejecuta via ORM) -> 23:37 apply_rules_to_bank (aplica TODAS las learned.rule a lineas no conciliadas) + bank_reconciler --threshold 90 -> 23:38 bank_multi_reconciler (subset-sum) + dudas_xlsx_collect (recoge dudas -> JSON) -> 23:39 dudas_xlsx_publish (sube xlsx a Drive) -> 23:40 email_summary (HTML + xlsx adjunto). Extra: 04:00 backup_to_drive (rolling 7 dias); 08:00 los dias 10 de ene/abr/jul/oct: periodic_expenses_check."),
@@ -140,10 +140,10 @@ def build():
          "SA email: vps-odoo-automation@carajfam-automation.iam.gserviceaccount.com (creds en /etc/automation_sa.json). Tiene quota 0 en Drive personal del usuario; NO puede CREATE archivos nuevos, solo UPDATE existentes. Workaround: archivos como dudas xlsx, RECOVERY.md, REGLAS_SISTEMA.xlsx y los 7 backup_DIA.tar.gz se PRE-CREARON via OAuth del usuario humano (file_ids fijos hardcodeados en codigo). La SA solo los actualiza. Si necesitas crear un archivo nuevo, usa el MCP create_file de Drive con cuenta del usuario, no la SA. Carpetas Drive por empresa: CARARJFAM 'Mi Odoo CARARJFAM' (1RZjKO1GqJuPURl6WTsl2R9egwm7cyYFQ), BT (en companies.py:pending_folder), AUSTRAL 'Mi Odoo AUSTRAL' (1SNDTko-SgeYNjyJ-_635ObprBDVWm-Jd). Subcarpetas estandar por empresa: Pendientes (raiz, donde sube docs el usuario) + Contabilizado odoo + revision + Aprendizajes_aplicados + ignorados (creada solo cuando rechazo se marca como ignorar)."),
 
         ("Documentos hermanos - leelos en este orden si arrancas desde 0",
-         "1) /opt/automation_austral/RECOVERY.md (sync en Drive file_id 1cYLjkrXgkJxKS-2nBD8GX0DFugMLznZe) - runbook completo de reinstalacion + lista de datos de configuracion clave. Imprescindible. 2) BLUEPRINT.md (en repo local odoo-deploy/) - patrones reutilizables si vas a montar algo similar en otro dominio. 3) HANDOFF.md / HANDOFF_AUSTRAL.md - como portar el sistema a otro ERP / anadir una empresa nueva. 4) ARQUITECTURA_CARAJFAM.md - explicacion didactica del sistema para humanos no-tecnicos. 5) Memoria del proyecto Claude: ~/.claude/projects/.../memory/MEMORY.md y archivos referenciados (preferencias usuario + reglas operativas, como 'pregunta una a una' y 'actualiza RECOVERY.md en cada cambio estructural')."),
+         "1) /opt/automation/RECOVERY.md (sync en Drive file_id 1cYLjkrXgkJxKS-2nBD8GX0DFugMLznZe) - runbook completo de reinstalacion + lista de datos de configuracion clave. Imprescindible. 2) BLUEPRINT.md (en repo local odoo-deploy/) - patrones reutilizables si vas a montar algo similar en otro dominio. 3) HANDOFF.md / HANDOFF_AUSTRAL.md - como portar el sistema a otro ERP / anadir una empresa nueva. 4) ARQUITECTURA_CARAJFAM.md - explicacion didactica del sistema para humanos no-tecnicos. 5) Memoria del proyecto Claude: ~/.claude/projects/.../memory/MEMORY.md y archivos referenciados (preferencias usuario + reglas operativas, como 'pregunta una a una' y 'actualiza RECOVERY.md en cada cambio estructural')."),
 
         ("Como regenero ESTE xlsx (REGLAS_SISTEMA.xlsx)",
-         "sudo -u odoo /opt/automation_austral/venv/bin/python /opt/automation_austral/build_rules_xlsx.py. El script lee las reglas hardcodeadas en su propia code, construye xlsx con openpyxl en /tmp, sube via SA UPDATE al file_id fijo 1lX032XqZ63u73jM6wDlIZsekqeQ-pzkG. Si anades reglas nuevas, edita el script (seccion rules_<area>.append({...})) y vuelve a ejecutar."),
+         "sudo -u odoo /opt/automation/venv/bin/python /opt/automation/build_rules_xlsx.py. El script lee las reglas hardcodeadas en su propia code, construye xlsx con openpyxl en /tmp, sube via SA UPDATE al file_id fijo 1lX032XqZ63u73jM6wDlIZsekqeQ-pzkG. Si anades reglas nuevas, edita el script (seccion rules_<area>.append({...})) y vuelve a ejecutar."),
 
         ("Reglas operativas no negociables (memoria del proyecto)",
          "1) Pregunta UNA cosa a la vez al usuario (Carlos), no listas de 5 puntos numerados; no le gustan. 2) Cada cambio ESTRUCTURAL del VPS (nuevo script, nuevo cron, nuevo addon, nueva BD, nuevo subdomain, nuevo modulo, cambio de path) -> actualizar RECOVERY.md en local + scp al VPS + UPDATE en Drive (file_id 1cYLjkrXgkJxKS-2nBD8GX0DFugMLznZe) en el MISMO turno. Si no, en 6 meses el RECOVERY esta obsoleto y el restore no funciona cuando se necesita. 3) Si una regla aprendida (learned.rule) tiene caso edge especifico de una empresa, marcarla con company_id correcto; NO mezclar reglas entre empresas (los socios autonomos de CARARJFAM no aplican a BT). 4) Idempotencia: 'already reconciled' / 'already exists' es exito, NO error. Pipelines re-pasan sin doblar acciones."),
@@ -155,7 +155,7 @@ def build():
          "Para QUERY/READ: sudo -u postgres psql -d cararjfam -c 'SELECT ...' o via ORM con sudo -u odoo /opt/odoo17/venv/bin/python -c '...' importando odoo.api.Environment. Para PROBAR cambios sin afectar prod: usa BD cararjfam_test (clon del estado actual + cron interno desactivado + SMTP off; no envia emails reales). Para reset rapido cararjfam_test: pg_dump cararjfam | pg_restore cararjfam_test (script en RECOVERY.md seccion 16)."),
 
         ("Como se notifica al usuario",
-         "Email diario a c.alcalde.campusport@gmail.com via Gmail SMTP (app password 16 chars en /opt/automation_austral/email_config.py). Contiene: lista facturas creadas hoy (link a Odoo), seccion Documentos rechazados como duplicado, seccion de conciliaciones bancarias propuestas/near-matches, xlsx adjunto por empresa. El usuario rellena la columna tu_decision del xlsx y al dia siguiente el cron procesa esa decision."),
+         "Email diario a c.alcalde.campusport@gmail.com via Gmail SMTP (app password 16 chars en /opt/automation/email_config.py). Contiene: lista facturas creadas hoy (link a Odoo), seccion Documentos rechazados como duplicado, seccion de conciliaciones bancarias propuestas/near-matches, xlsx adjunto por empresa. El usuario rellena la columna tu_decision del xlsx y al dia siguiente el cron procesa esa decision."),
 
         ("Conceptos contables espanoles esenciales",
          "PGC PYMES Espana: 400/410 proveedores, 430 clientes, 465 remuneraciones pdtes pago empleados, 475100 HP retenciones IRPF (6 digitos!), 476000 Org SS acreedores, 520 prestamos corto plazo, 572 banco, 600 compras, 625 seguros, 626 servicios bancarios, 629 otros (placeholder no deducible), 640 sueldos, 642 SS empresa, 477 HP IVA repercutido. Asiento de nomina (spec usuario): DR 640=bruto total devengo + DR 642=aport empresa SS / CR 4751=IRPF + CR 476=aport_empresa+ss_trab+especie_socio + CR 465.NNN per trabajador=liquido_cash. Tipos cotizacion SS 2026: CC empresa 24,35% / desempleo empresa indef 5,50% temp 6,70% / FP empresa 0,60% / FOGASA 0,20% / CC trabajador 4,85% / desempleo trabajador 1,55% / FP trabajador 0,10%. BCCC empleado DEBE = BCCC empresa (LGSS 147)."),
@@ -297,6 +297,51 @@ def build():
          "formula": "invoice→600000, nomina→640000, irpf_payment→475100, ss_payment→642000, other_official→629000",
          "severidad": "info", "fuente": "PGC PYMES",
          "script": "process_invoice.py:DOC_TYPE_DEFAULT_ACCOUNT", "notas": ""},
+        {"empresa": "GLOBAL", "id": "FAC08", "regla": "Búsqueda partner por VARIANTES de VAT",
+         "formula": "Antes de crear partner, search por: VAT raw, VAT canonical (con ES), VAT sin ES. Si cualquiera matchea → reutilizar partner existente (no crear duplicado).",
+         "severidad": "critical", "fuente": "post-mortem GANESHA (B86002318 vs ESB86002318 → 2 partners)",
+         "script": "process_invoice.py:find_or_create_supplier",
+         "notas": "normalize_vat puede producir formas distintas según el input; buscar solo por la canonical pierde matches."},
+        {"empresa": "GLOBAL", "id": "FAC09", "regla": "Fallback por nombre normalizado",
+         "formula": "Si no encuentra por VAT (variantes), buscar partner por nombre normalizado (upper + collapse spaces + strip SL/SA suffix). Si matchea → reutilizar y actualizar VAT.",
+         "severidad": "critical", "fuente": "post-mortem MATEO MOTOR (mismo VAT pero 2 partners por race)",
+         "script": "process_invoice.py:find_or_create_supplier + _norm_partner_name",
+         "notas": "Detecta duplicados causados por race / typo VAT / VAT ausente. Solo crea nuevo partner si nada matchea."},
+        {"empresa": "GLOBAL", "id": "FAC10", "regla": "NUNCA SQL crudo para campos validados (vat, email)",
+         "formula": "SIEMPRE usar partner.write({'vat': X}). Raw SQL UPDATE res_partner SET vat=... salta normalize_vat de base_vat y produce duplicados.",
+         "severidad": "critical", "fuente": "post-mortem GANESHA (yo causé el duplicado con SQL crudo)",
+         "script": "dudas_apply_odoo._create_vat_correction (corregido)",
+         "notas": "Si base_vat rechaza checksum → with_context(no_vat_validation=True).write() como fallback."},
+        {"empresa": "GLOBAL", "id": "FAC11", "regla": "Cron diario detector duplicados",
+         "formula": "Cron 06:00 diario ejecuta detect_duplicate_partners.py: 3 SQL detectan VAT-idéntico, nombre-normalizado-idéntico, VAT-igual-salvo-prefijo-ES. Si encuentra → email alerta.",
+         "severidad": "warning", "fuente": "safety net post-mortem",
+         "script": "detect_duplicate_partners.py + cron 0 6 * * *",
+         "notas": "Detecta cualquier duplicado que se cuele a pesar de FAC08+FAC09 (race, manual UI input, restore)."},
+        {"empresa": "GLOBAL", "id": "FAC12", "regla": "Comprobar SIEMPRE si ya está contabilizado ANTES de contabilizar (incl. importaciones y cross-diario)",
+         "formula": "Antes de crear cualquier asiento buscar duplicado: (a) por nº/ref del documento en TODA la company, no solo el diario destino; (b) cross-diario: el nº puede existir ya en OV (migración Sage, ref 'SAGE-xxxx / Doc <nº>') → buscar 'Doc <nº>'; (c) extractos por (company, journal, periodo, nº líneas); (d) sin nº fiable, por (partner + importe + fecha). Contar y reportar lo omitido; nunca contabilizar a ciegas.",
+         "severidad": "critical", "fuente": "incidente mayo 2026: 327 ventas duplicadas vs asientos Sage (diario OV)",
+         "script": "process_invoice.py / importadores masivos / bank_importer.py",
+         "notas": "Generaliza FAC03 (que solo cubre re-subida del mismo PDF). Comprobar-antes-de-contabilizar es PARTE de contabilizar, en todas las empresas y también en importaciones masivas."},
+        {"empresa": "AUSTRAL", "id": "FAC13", "regla": "Retención IRPF en facturas (alquileres / profesionales)",
+         "formula": "Si hay retención: total = base + IVA − IRPF. Detectar irpf_rate/irpf_amount; aplicar impuesto de compra reutilizable amount=−rate%. Cuenta: 19% (alquiler) → 475100003; 15%/7% (profesional) → 475100002.",
+         "severidad": "error", "fuente": "facturas de alquiler/servicios con retención; PGC 4751",
+         "script": "process_invoice.py:find_or_create_irpf_tax + validate_payload; extractor PROMPT irpf_rate/irpf_amount",
+         "notas": "Sin esto el cuadre base+IVA=total falla y la factura va a Revisión. Origen: alquiler ANTONIO BELLIDO."},
+        {"empresa": "GLOBAL", "id": "FAC14", "regla": "IVA incluido en tickets de caja → reescalar a base neta",
+         "formula": "Si las líneas suman ~total (con IVA) y NO el subtotal, reescalar cada línea a neto (por tax_rate de la línea; fallback ratio subtotal/Σlíneas) y cuadrar el último céntimo.",
+         "severidad": "error", "fuente": "tickets caja euros con IVA incluido (líneas brutas)",
+         "script": "process_invoice.py:_normalize_iva_included_lines (en los 3 pipelines) + extractor.py PROMPT regla 'VAT-INCLUDED documents'",
+         "notas": "Conservador: solo actúa si Σlíneas cuadra con el total (con IVA), no con el subtotal. Portado a los 3 pipelines (jun-2026); antes solo AUSTRAL y BT rechazaba tickets China City/Pepco por esto."},
+        {"empresa": "AUSTRAL", "id": "FAC15", "regla": "Ventas factura-a-factura (libro de facturas emitidas)",
+         "formula": "Cliente por NIF (vat ∈ [nif, ESnif]; fallback por nombre) → su cuenta 430+código. Diario INV(28). Preservar nº oficial como move.name. IVA por importe (21/10/4) y 0% por país: UE→intracom(506), resto/Canarias→export(507). Abonos = out_refund con importes en positivo.",
+         "severidad": "error", "fuente": "export ERP comercial 'Facturas/Abonos emitidas'",
+         "script": "importador masivo de ventas",
+         "notas": "ANTES aplicar FAC12: muchas ya están en asientos Sage (diario OV, ref 'Doc <nº>'). No duplicar."},
+        {"empresa": "GLOBAL", "id": "FAC16", "regla": "Escaneo borroso → fiar del bloque de TOTALES, no del detalle de líneas",
+         "formula": "Si el detalle por línea es ilegible o no suma, pero el bloque de totales (Base/IVA/Total, 'Imponible/IVA/Subtotal' o 'DESGLOSE TOTALES: TOTAL BI/TOTAL IVA/TOTAL') es legible, usarlo como verdad: una sola línea resumen con amount=base y su tax_rate. No itemizar a ciegas.",
+         "severidad": "warning", "fuente": "facturas/tickets escaneados de baja calidad (CamScanner, fotos)",
+         "script": "extractor.py PROMPT (sección Rules); process_invoice _normalize_iva_included_lines como red de seguridad",
+         "notas": "Origen: obramat enero 2 (líneas captadas 75,22 pero base real 121,76; los totales del PDF sí estaban bien)."},
     ]
     for r in rules_fac: _add_rule(ws, r)
 
@@ -334,6 +379,26 @@ def build():
          "formula": "'already reconciled' se trata como éxito, NO error. Re-pasadas no doblan acciones.",
          "severidad": "info", "fuente": "principio idempotency pipelines",
          "script": "todos los reconcilers", "notas": ""},
+        {"empresa": "AUSTRAL", "id": "BNK08", "regla": "Lectura robusta de extractos .xls/.xlsx",
+         "formula": "xls: xlrd DIRECTO (bypass del check de versión pandas↔xlrd), fallback HTML y openpyxl. Cabecera detectada hasta fila 25 (BBVA: F.VALOR/F.CONTABLE). Fechas con hora se recortan a YYYY-MM-DD. Nº de cuenta CCC desnudo (16-24 díg sin prefijo ES) como IBAN hint. NO_ES_BANCO: rechazar exports de facturas (FACTURA/CLIENTE/NIF sin SALDO).",
+         "severidad": "error", "fuente": "formatos reales ABANCA/BBVA/Cajamar",
+         "script": "bank_importer.py:_read_xls_robusto/_find_iban_in_text/_parse_date_es",
+         "notas": "Implementado solo en el pipeline austral."},
+        {"empresa": "GLOBAL", "id": "BNK11", "regla": "Idempotencia al importar extractos (no reimportar dos veces)",
+         "formula": "bank_importer.import_file: antes de crear el account.bank.statement busca uno existente con mismo (company_id, journal_id, nombre) y, si coincide el nº de líneas, devuelve duplicate=True sin crear nada. nombre = <diario> <fecha_min> a <fecha_max>.",
+         "severidad": "critical", "fuente": "incidente CARARJFAM: extracto La Caixa contabilizado 2 veces (124 vs 62 apuntes en 572001; 47.532 EUR atascados en transitoria)",
+         "script": "bank_importer.py:import_file (todas las empresas: /opt/automation y /opt/automation_austral)",
+         "notas": "Re-subir el mismo extracto NO duplica. Aplica a las 3 empresas."},
+        {"empresa": "AUSTRAL", "id": "BNK10", "regla": "Todo extracto importado se concilia (auto + pendientes con aprendizaje)",
+         "formula": "Al importar un extracto, bank_importer llama cmd_auto_reconcile: aplica learned.rule(bank, conf>=0.85) a las lineas. Las que no casan quedan en la pestana web Revision>Conciliaciones pendientes con info del banco + propuesta (bank_matcher) + fiabilidad. Al resolver, si learn=1, se crea/actualiza learned.rule(bank) para auto-conciliar futuros movimientos parecidos.",
+         "severidad": "error", "fuente": "regla usuario: siempre conciliar al importar",
+         "script": "bank_importer.py:import_file + conciliacion_ops.py + web /api/conciliacion",
+         "notas": "Bucle de aprendizaje: cada decision manual mejora la auto-conciliacion siguiente. Reglas gestionables a mano en la web (Conciliaciones pendientes > Ver reglas): ver/crear/editar/activar learned.rule(bank) via /api/conciliacion/reglas."},
+        {"empresa": "AUSTRAL", "id": "BNK09", "regla": "Journal de banco filtrado por company",
+         "formula": "_find_journal busca solo journals de la company del pipeline (_AUSTRAL_COMPANY_ID=4). Un IBAN duplicado en otra company (3 'AUSTRAL en migración') NO debe capturar el statement.",
+         "severidad": "critical", "fuente": "incidente: Caja Rural se contabilizó en company 3 por IBAN duplicado",
+         "script": "bank_importer.py:_find_journal",
+         "notas": "Evita contaminar otra empresa con extractos de Austral."},
     ]
     for r in rules_bnk: _add_rule(ws, r)
 
@@ -458,8 +523,23 @@ def build():
          "formula": "rc=0 → Contabilizado odoo/\nrc=20 (duplicate) → Contabilizado odoo/\notros rc → revision/",
          "severidad": "info", "fuente": "diseño pipeline",
          "script": "extractor.py", "notas": "PDF nunca se queda en Pendientes/ tras procesar."},
+        {"empresa": "GLOBAL", "id": "EXT09", "regla": "NUNCA sys.path.insert hacia OTRA carpeta automation",
+         "formula": "En cada script de /opt/automation/X.py el primer sys.path.insert DEBE apuntar a /opt/automation. Nunca a /opt/automation_austral o similar — eso provocaría que import companies cargue el companies.py incorrecto y procese empresas incorrectas.",
+         "severidad": "critical", "fuente": "post-mortem bug 30-may a 1-jun 2026 (CARARJFAM/BT 3 dias sin procesar porque extractor.py leia companies.py de austral)",
+         "script": "extractor.py + cualquier processor multi-tenant",
+         "notas": "Si se copia codigo entre /opt/automation y /opt/automation_austral, revisar SIEMPRE los sys.path.insert y rutas absolutas. Bug-class: copy-paste cruzado entre pipelines hermanos."},
+        {"empresa": "GLOBAL", "id": "EXT11", "regla": "Aislamiento entre pipelines multi-empresa (4 capas)",
+         "formula": "1) Cada companies.py declara PIPELINE_NAME + DB_NAME + EXPECTED_VATS. 2) Cada script hace sys.path.insert(0, dirname(__file__)) → carga companies.py de SU misma carpeta. 3) Asserts comp.PIPELINE_NAME esperado al arrancar, aborta con RuntimeError(PIPELINE_MISMATCH) si carga el companies.py incorrecto. 4) Cron usa cd /opt/automation_X explícito antes de cada comando.",
+         "severidad": "critical", "fuente": "refuerzo post-mortem EXT09 (bug sys.path cruzado entre pipelines)",
+         "script": "companies.py (metadata) + cada *.py (preamble guard auto-inyectado) + crontab",
+         "notas": "El guard usa __file__ para resolver la carpeta real del script, asi se mantiene robusto independientemente del cwd. Re-aplicar con _isolate_pipelines.py es idempotente (no duplica el bloque)."},
+        {"empresa": "GLOBAL", "id": "EXT10", "regla": "Carpeta Pendientes limpia — solo PDFs/imagenes de facturas",
+         "formula": "SKIP_FILENAME_HINTS contiene: 'dudas','aprendizaje','_aplicado','_procesado','backup_','recovery'. Cualquier archivo en Pendientes/ que NO sea factura debe ir a subcarpeta 'Sistema (no procesar)' o ser excluido por patron.",
+         "severidad": "warning", "fuente": "post-mortem bug 1-jun 2026 (backups y RECOVERY.md acumulados en Pendientes de CARARJFAM)",
+         "script": "extractor.py:SKIP_FILENAME_HINTS",
+         "notas": "El backup_to_drive.py mantiene los 7 file_ids fijos pero independientes de la ubicacion; se pueden mover sin romper. Igual RECOVERY.md (file_id fijo)."},
         {"empresa": "GLOBAL", "id": "EXT08", "regla": "Persistencia resultado diario",
-         "formula": "Cada noche escribe /tmp/extractor_runs_austral/<YYYY-MM-DD>.json con summary (por empresa: duplicates[], errors[], created[]).",
+         "formula": "Cada noche escribe /tmp/extractor_runs/<YYYY-MM-DD>.json con summary (por empresa: duplicates[], errors[], created[]).",
          "severidad": "info", "fuente": "lectura por email + xlsx Rechazados",
          "script": "extractor.py final",
          "notas": "dudas_xlsx_publish lee últimos 4 días para hoja Rechazados/Duplicados."},
@@ -487,7 +567,7 @@ def build():
          "severidad": "info", "fuente": "diseño",
          "script": "crontab user odoo", "notas": ""},
         {"empresa": "GLOBAL", "id": "BAK05", "regla": "RECOVERY.md sincronización triple",
-         "formula": "Cada cambio estructural: editar local C:\\Users\\pc\\Documents\\odoo-deploy\\RECOVERY.md → scp a /opt/automation_austral/RECOVERY.md → svc.files().update(fileId='1cYLjkrXgkJxKS-...').",
+         "formula": "Cada cambio estructural: editar local C:\\Users\\pc\\Documents\\odoo-deploy\\RECOVERY.md → scp a /opt/automation/RECOVERY.md → svc.files().update(fileId='1cYLjkrXgkJxKS-...').",
          "severidad": "critical", "fuente": "memoria proyecto project_carajfam_recovery_maintenance.md",
          "script": "manual + agente Claude",
          "notas": "Si se omite, RECOVERY.md no reflejará el sistema actual y restore fallará."},
@@ -508,7 +588,7 @@ def build():
          "formula": "today > expected_next + avg_gap * 0,5 → MISSING (50% del gap como gracia)",
          "severidad": "warning", "fuente": "configuración usuario", "script": "periodic_expenses_check.py", "notas": ""},
         {"empresa": "GLOBAL", "id": "PER04", "regla": "Salida — hoja extra xlsx",
-         "formula": "/tmp/periodic_austral/<vat>_periodic.json → dudas_xlsx_publish añade hoja 'Gastos_periodicos' (rojo si falta, verde si OK)",
+         "formula": "/tmp/periodic/<vat>_periodic.json → dudas_xlsx_publish añade hoja 'Gastos_periodicos' (rojo si falta, verde si OK)",
          "severidad": "info", "fuente": "diseño", "script": "dudas_xlsx_publish.py + periodic_expenses_check.py", "notas": ""},
         {"empresa": "GLOBAL", "id": "PER05", "regla": "Aprendizaje automático",
          "formula": "Sin lista predefinida — el sistema detecta patrones del histórico (LOOKBACK_MONTHS=18). Cuanto más histórico, más detecta.",

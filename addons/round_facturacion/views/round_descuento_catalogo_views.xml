@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_round_descuento_catalogo_tree" model="ir.ui.view">
+        <field name="name">round.descuento.catalogo.tree</field>
+        <field name="model">round.descuento.catalogo</field>
+        <field name="arch" type="xml">
+            <tree string="Catálogo de descuentos">
+                <field name="codigo"/>
+                <field name="descripcion"/>
+                <field name="tipo"/>
+                <field name="valor"/>
+                <field name="activo" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_round_descuento_catalogo_form" model="ir.ui.view">
+        <field name="name">round.descuento.catalogo.form</field>
+        <field name="model">round.descuento.catalogo</field>
+        <field name="arch" type="xml">
+            <form string="Descuento">
+                <sheet>
+                    <widget name="web_ribbon" title="Inactivo" bg_color="bg-danger"
+                            invisible="activo"/>
+                    <group>
+                        <group>
+                            <field name="codigo"/>
+                            <field name="descripcion"/>
+                        </group>
+                        <group>
+                            <field name="tipo"/>
+                            <field name="valor"/>
+                            <field name="activo"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_round_descuento_catalogo" model="ir.actions.act_window">
+        <field name="name">Catálogo de descuentos</field>
+        <field name="res_model">round.descuento.catalogo</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay descuentos en el catálogo</p>
+            <p>El catálogo de descuentos se sincroniza desde NoofitPro vía MCP.</p>
+        </field>
+    </record>
+
+</odoo>

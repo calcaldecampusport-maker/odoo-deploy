@@ -33,6 +33,7 @@ try:
 except ImportError:
     pass  # script sin dependencia de companies.py (e.g. drive_ops)
 # === end isolation guard ===
+
 try:
     _AUSTRAL_COMPANY_ID = int(_comp_guard.COMPANIES[0]["odoo_company_id"])
 except Exception:
@@ -346,12 +347,46 @@ def import_file(file_path: Path) -> dict:
                     "iban_hint": iban, "transactions": len(txs)}
 
         company_id = journal.company_id.id
+
+        # --- Dedup por-linea: despreciar movimientos ya importados (solape de extractos) ---
+        # Regla (jul 2026): al reimportar un extracto que solapa con otro ya subido NO se
+        # recrean las lineas que ya existen (mismo journal + fecha + importe + concepto).
+        # Conteo multiset -> respeta repeticiones legitimas el mismo dia (p.ej. dos recibos
+        # identicos): solo se importa el excedente sobre lo ya presente en ese rango.
+        from collections import Counter as _Counter
+        def _tx_key(_d, _amt, _ref):
+            return (_d.isoformat() if hasattr(_d, "isoformat") else str(_d),
+                    round(float(_amt or 0), 2), (_ref or "").strip()[:120])
+        _all_min = min(t["date"] for t in txs)
+        _all_max = max(t["date"] for t in txs)
+        _existing = env["account.bank.statement.line"].search([
+            ("journal_id", "=", journal.id),
+            ("date", ">=", _all_min), ("date", "<=", _all_max)])
+        _seen = _Counter(_tx_key(l.date, l.amount, l.payment_ref) for l in _existing)
+        _new_txs = []
+        _skipped = 0
+        for _tx in txs:
+            _k = _tx_key(_tx["date"], _tx["amount"], (_tx["concept"][:120] or "Movimiento"))
+            if _seen.get(_k, 0) > 0:
+                _seen[_k] -= 1
+                _skipped += 1
+                continue
+            _new_txs.append(_tx)
+        log.info(f"  dedup: {_skipped} ya importados, {len(_new_txs)} nuevos de {len(txs)}")
+        if not _new_txs:
+            return {"file": str(file_path), "format": fmt, "iban": iban,
+                    "journal_id": journal.id, "duplicate": True, "skipped": _skipped,
+                    "lines": 0, "transactions": len(txs),
+                    "min_date": str(_all_min), "max_date": str(_all_max),
+                    "note": "todos los movimientos ya estaban importados"}
+        txs = _new_txs
         min_date = min(t["date"] for t in txs)
         max_date = max(t["date"] for t in txs)
-        balance_start = parsed.get("balance_start") or 0.0
         balance_end = parsed.get("balance_end")
         if balance_end is None:
-            balance_end = balance_start + sum(t["amount"] for t in txs)
+            balance_end = (parsed.get("balance_start") or 0.0) + sum(t["amount"] for t in parsed.get("transactions", []))
+        # balance_start coherente con el subconjunto REALMENTE importado (start + sum = end)
+        balance_start = round(balance_end - sum(t["amount"] for t in txs), 2)
 
         statement_name = f"{journal.name} {min_date.isoformat()} a {max_date.isoformat()}"
         # Idempotencia: si ya existe un statement con mismo journal+nombre+nº lineas, no duplicar

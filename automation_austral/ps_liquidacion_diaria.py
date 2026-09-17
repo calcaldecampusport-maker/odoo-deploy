@@ -76,14 +76,67 @@ def classify_iva(base, total):
     return 'iva_21'  # ratio raro → 21% por defecto
 
 
+PEND_FILE = '/var/automation_austral/ps_pendientes.json'
+REINTENTO_DIAS = 5     # ventana de reintento para un día que falló o vino vacío
+
+
 def fetch_ps(endpoint, desde, hasta):
+    """Registros de PrestaShop entre dos fechas.
+
+    Ojo con la forma de la respuesta: cuando NO hay registros la API devuelve una
+    LISTA vacía, y cuando sí los hay un diccionario con la clave en PLURAL
+    (order_slips) aunque el endpoint sea singular (order_slip). El código antiguo
+    hacía j.get(...) sobre la lista (petaba los días sin abonos) y solo miraba la
+    clave singular (por eso los abonos salían siempre a 0)."""
     r = requests.get(f"{API}/{endpoint}", params={
         'ws_key': KEY, 'output_format':'JSON', 'display':'full', 'date':'1',
         'limit':'5000', 'filter[date_add]': f'[{desde},{hasta}]',
     }, timeout=120)
     r.raise_for_status()
     j = r.json()
-    return j.get(endpoint, j.get(endpoint.rstrip('s'), []))
+    if isinstance(j, list):          # sin registros ese día
+        return j
+    if not isinstance(j, dict):
+        return []
+    for clave in (endpoint, endpoint + 's', endpoint.rstrip('s'), endpoint.rstrip('s') + 's'):
+        v = j.get(clave)
+        if isinstance(v, list):
+            return v
+    # por si algún día cambian el nombre: la primera lista que traiga
+    for v in j.values():
+        if isinstance(v, list):
+            return v
+    return []
+
+
+def cargar_pendientes():
+    """{'YYYY-MM-DD': {'desde': 'YYYY-MM-DD', 'intentos': n, 'motivo': str}}"""
+    try:
+        with open(PEND_FILE) as f:
+            return json.load(f)
+    except Exception:          # noqa: BLE001 — sin fichero o ilegible: se empieza limpio
+        return {}
+
+
+def guardar_pendientes(p):
+    try:
+        os.makedirs(os.path.dirname(PEND_FILE), exist_ok=True)
+        with open(PEND_FILE, 'w') as f:
+            json.dump(p, f, indent=2, sort_keys=True)
+    except Exception as e:     # noqa: BLE001 — no debe tumbar la ejecución
+        print(f'[ps_liquidacion_diaria] AVISO: no se pudo guardar {PEND_FILE}: {e}')
+
+
+def anotar_pendiente(pend, dia, motivo):
+    """Apunta el día para reintentarlo en las próximas ejecuciones."""
+    hoy = date.today().isoformat()
+    e = pend.get(dia) or {'desde': hoy, 'intentos': 0}
+    e['intentos'] = int(e.get('intentos', 0)) + 1
+    e['motivo'] = motivo
+    e['ultimo_intento'] = hoy
+    pend[dia] = e
+    print(f'  ↻ {dia} queda pendiente ({motivo}) — intento {e["intentos"]}, '
+          f'se reintentará hasta {REINTENTO_DIAS} días desde {e["desde"]}')
 
 
 def fechas_a_procesar(arg_date=None):
@@ -175,61 +228,121 @@ def main():
     parser.add_argument('--date', help='YYYY-MM-DD (procesar solo ese día)')
     parser.add_argument('--from', dest='dfrom', help='YYYY-MM-DD (rango inicio)')
     parser.add_argument('--to', dest='dto', help='YYYY-MM-DD (rango fin)')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='consulta PrestaShop y dice qué haría, sin contabilizar')
+    parser.add_argument('--sin-reintentos', action='store_true',
+                        help='no arrastrar la cola de días pendientes')
     args = parser.parse_args()
 
+    manual = bool(args.date or (args.dfrom and args.dto))
     if args.dfrom and args.dto:
         start = datetime.strptime(args.dfrom, '%Y-%m-%d').date()
         end = datetime.strptime(args.dto, '%Y-%m-%d').date()
         fechas = [start + timedelta(days=i) for i in range((end - start).days + 1)]
     else:
         fechas = fechas_a_procesar(args.date)
-    print(f'[ps_liquidacion_diaria] fechas a procesar: {[f.isoformat() for f in fechas]}')
 
-    desde = fechas[0].isoformat() + ' 00:00:00'
-    hasta = fechas[-1].isoformat() + ' 23:59:59'
+    # --- cola de reintentos: días que fallaron o vinieron vacíos ---
+    pend = {} if (manual or args.sin_reintentos) else cargar_pendientes()
+    hoy = date.today()
+    reintentos = []
+    for dia, info in sorted(pend.items()):
+        try:
+            edad = (hoy - datetime.strptime(info.get('desde', dia), '%Y-%m-%d').date()).days
+        except Exception:      # noqa: BLE001
+            edad = 0
+        if edad > REINTENTO_DIAS:
+            print(f'[ps_liquidacion_diaria] ABANDONADO {dia}: {REINTENTO_DIAS} días sin '
+                  f'conseguir datos ({info.get("motivo")}) — revísalo a mano')
+            continue
+        reintentos.append(datetime.strptime(dia, '%Y-%m-%d').date())
+    for dia in list(pend):
+        try:
+            if (hoy - datetime.strptime(pend[dia].get('desde', dia), '%Y-%m-%d').date()).days > REINTENTO_DIAS:
+                pend.pop(dia)
+        except Exception:      # noqa: BLE001
+            pend.pop(dia)
 
-    invs = fetch_ps('order_invoices', desde, hasta)
-    slips = fetch_ps('order_slip', desde, hasta)
-    print(f'[ps_liquidacion_diaria] PS API: {len(invs)} facturas + {len(slips)} abonos')
+    fechas = sorted(set(fechas) | set(reintentos))
+    print(f'[ps_liquidacion_diaria] fechas a procesar: {[f.isoformat() for f in fechas]}'
+          + (f' (de ellas {len(reintentos)} de la cola de reintentos)' if reintentos else '')
+          + (' [DRY-RUN: no se contabiliza]' if args.dry_run else ''))
 
-    # Agrupar por día → tipo IVA
+    # --- descarga POR DÍA: un día que falle no arrastra a los demás ---
     days_fac = defaultdict(lambda: defaultdict(lambda: {'n':0,'base':0.0,'iva':0.0,'total':0.0}))
     days_abo = defaultdict(lambda: defaultdict(lambda: {'n':0,'base':0.0,'iva':0.0,'total':0.0}))
-    for inv in invs:
-        d = inv['date_add'][:10]
-        base = float(inv['total_paid_tax_excl']); total = float(inv['total_paid_tax_incl'])
-        cls = classify_iva(base, total)
-        b = days_fac[d][cls]; b['n']+=1; b['base']+=base; b['iva']+=(total-base); b['total']+=total
-    for s in slips:
-        d = s['date_add'][:10]
-        base = float(s.get('total_products_tax_excl',0) or 0) + float(s.get('total_shipping_tax_excl',0) or 0)
-        total = float(s.get('amount',0) or 0)
-        if total == 0:
-            total = float(s.get('total_products_tax_incl',0) or 0) + float(s.get('total_shipping_tax_incl',0) or 0)
-        cls = classify_iva(base, total)
-        b = days_abo[d][cls]; b['n']+=1; b['base']+=base; b['iva']+=(total-base); b['total']+=total
+    con_datos = []
+    for f in fechas:
+        d_str = f.isoformat()
+        try:
+            invs = fetch_ps('order_invoices', d_str + ' 00:00:00', d_str + ' 23:59:59')
+            slips = fetch_ps('order_slip', d_str + ' 00:00:00', d_str + ' 23:59:59')
+        except Exception as e:  # noqa: BLE001 — API caída, timeout, 500…
+            anotar_pendiente(pend, d_str, f'error de la API: {str(e)[:80]}')
+            continue
+        print(f'  {d_str}: {len(invs)} facturas + {len(slips)} abonos')
+        if not invs and not slips:
+            anotar_pendiente(pend, d_str, 'PrestaShop no devolvió ningún registro')
+            continue
+        for inv in invs:
+            d = inv['date_add'][:10]
+            base = float(inv['total_paid_tax_excl']); total = float(inv['total_paid_tax_incl'])
+            cls = classify_iva(base, total)
+            b = days_fac[d][cls]; b['n']+=1; b['base']+=base; b['iva']+=(total-base); b['total']+=total
+        for sl in slips:
+            d = sl['date_add'][:10]
+            base = float(sl.get('total_products_tax_excl',0) or 0) + float(sl.get('total_shipping_tax_excl',0) or 0)
+            total = float(sl.get('amount',0) or 0)
+            if total == 0:
+                total = float(sl.get('total_products_tax_incl',0) or 0) + float(sl.get('total_shipping_tax_incl',0) or 0)
+            cls = classify_iva(base, total)
+            b = days_abo[d][cls]; b['n']+=1; b['base']+=base; b['iva']+=(total-base); b['total']+=total
+        con_datos.append(f)
+        pend.pop(d_str, None)          # ese día ya está resuelto
 
-    # Crear asientos
+    if args.dry_run:
+        print('[ps_liquidacion_diaria] DRY-RUN: no se contabiliza nada. Resumen:')
+        for f in fechas:
+            d_str = f.isoformat()
+            fac = sum(v['total'] for v in (days_fac.get(d_str) or {}).values())
+            abo = sum(v['total'] for v in (days_abo.get(d_str) or {}).values())
+            nf = sum(v['n'] for v in (days_fac.get(d_str) or {}).values())
+            na = sum(v['n'] for v in (days_abo.get(d_str) or {}).values())
+            print(f'   {d_str}: facturas {nf} ({fac:.2f}) · abonos {na} ({abo:.2f})')
+        if not (manual or args.sin_reintentos):
+            guardar_pendientes(pend)
+            print(f'[ps_liquidacion_diaria] cola de reintentos: {sorted(pend)}')
+        return
+
+    # --- contabilizar solo los días que trajeron datos ---
     reg = odoo.registry('cararjfam_test')
     all_log = []
     with reg.cursor() as cr:
         env = odoo.api.Environment(cr, 1, {'allowed_company_ids':[COMPANY_ID]})
         cr.execute("SELECT id, code FROM account_account WHERE company_id=%s", (COMPANY_ID,))
         acc_by_code = {code:aid for aid,code in cr.fetchall()}
-        # Reactivar cuentas si están deprecadas
         for code in ACC_CODES.values():
             if code in acc_by_code:
                 cr.execute("UPDATE account_account SET deprecated=false WHERE id=%s AND deprecated=true", (acc_by_code[code],))
-
-        for f in fechas:
+        for f in con_datos:
             d_str = f.isoformat()
-            log = crear_asiento_dia(env, acc_by_code, f, days_fac.get(d_str), days_abo.get(d_str))
-            all_log.extend(log)
+            try:
+                log = crear_asiento_dia(env, acc_by_code, f, days_fac.get(d_str), days_abo.get(d_str))
+                all_log.extend(log)
+            except Exception as e:      # noqa: BLE001 — un día no debe tumbar el resto
+                print(f'  ERROR contabilizando {d_str}: {str(e)[:120]}')
+                anotar_pendiente(pend, d_str, f'error al contabilizar: {str(e)[:80]}')
         cr.commit()
 
-    # Guardar JSON
+    if not (manual or args.sin_reintentos):
+        guardar_pendientes(pend)
+        if pend:
+            print(f'[ps_liquidacion_diaria] cola de reintentos: {sorted(pend)}')
+
     out_path = f'/tmp/ps_liquidacion_{date.today().isoformat()}.json'
-    open(out_path,'w').write(json.dumps({'fechas':[f.isoformat() for f in fechas], 'asientos': all_log}, indent=2, default=str))
+    open(out_path,'w').write(json.dumps({'fechas':[f.isoformat() for f in fechas],
+                                         'pendientes': sorted(pend),
+                                         'asientos': all_log}, indent=2, default=str))
     print(f'[ps_liquidacion_diaria] OK {len(all_log)} asientos. JSON: {out_path}')
     for x in all_log:
         if x.get('skip'):
@@ -238,6 +351,7 @@ def main():
             print(f'  ERROR {x["ref"]}: {x["error"]}')
         else:
             print(f'  + {x["tipo"]} {x["name"]} ref={x["ref"]} total={x["total"]:.2f} n={x["n"]}')
+
 
 if __name__ == '__main__':
     main()

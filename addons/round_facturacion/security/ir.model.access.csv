@@ -1,0 +1,12 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_round_cuota_catalogo_user,round.cuota.catalogo.user,model_round_cuota_catalogo,group_round_user,1,0,0,0
+access_round_cuota_catalogo_manager,round.cuota.catalogo.manager,model_round_cuota_catalogo,group_round_manager,1,1,1,1
+access_round_descuento_catalogo_user,round.descuento.catalogo.user,model_round_descuento_catalogo,group_round_user,1,0,0,0
+access_round_descuento_catalogo_manager,round.descuento.catalogo.manager,model_round_descuento_catalogo,group_round_manager,1,1,1,1
+access_round_modificacion_recibo_user,round.modificacion.recibo.user,model_round_modificacion_recibo,group_round_user,1,0,0,0
+access_round_modificacion_recibo_manager,round.modificacion.recibo.manager,model_round_modificacion_recibo,group_round_manager,1,1,1,1
+access_round_subscription_user,round.subscription.user,model_round_subscription,group_round_user,1,0,0,0
+access_round_subscription_manager,round.subscription.manager,model_round_subscription,group_round_manager,1,1,1,1
+access_round_pasarela_config_manager,round.pasarela.config.manager,model_round_pasarela_config,group_round_manager,1,1,1,1
+access_round_log_webhook_user,round.log.webhook.user,model_round_log_webhook,group_round_user,1,0,0,0
+access_round_log_webhook_manager,round.log.webhook.manager,model_round_log_webhook,group_round_manager,1,1,1,1

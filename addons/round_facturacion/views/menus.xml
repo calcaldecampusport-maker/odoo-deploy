@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Menú raíz -->
+    <menuitem id="menu_round_root"
+              name="Round Facturación"
+              sequence="20"
+              web_icon="round_facturacion,static/description/icon.png"/>
+
+    <!-- Operativa diaria -->
+    <menuitem id="menu_round_subscriptions"
+              name="Suscripciones"
+              parent="menu_round_root"
+              action="action_round_subscription"
+              sequence="10"/>
+
+    <menuitem id="menu_round_modificaciones"
+              name="Modificaciones"
+              parent="menu_round_root"
+              action="action_round_modificacion_recibo"
+              sequence="20"/>
+
+    <!-- Catálogos (configuración) -->
+    <menuitem id="menu_round_config_root"
+              name="Configuración"
+              parent="menu_round_root"
+              sequence="90"
+              groups="round_facturacion.group_round_manager"/>
+
+    <menuitem id="menu_round_cuotas"
+              name="Catálogo cuotas"
+              parent="menu_round_config_root"
+              action="action_round_cuota_catalogo"
+              sequence="10"/>
+
+    <menuitem id="menu_round_descuentos"
+              name="Catálogo descuentos"
+              parent="menu_round_config_root"
+              action="action_round_descuento_catalogo"
+              sequence="20"/>
+
+    <menuitem id="menu_round_pasarelas"
+              name="Pasarelas de pago"
+              parent="menu_round_config_root"
+              action="action_round_pasarela_config"
+              sequence="30"/>
+
+    <!-- Trazabilidad -->
+    <menuitem id="menu_round_logs"
+              name="Logs webhooks"
+              parent="menu_round_config_root"
+              action="action_round_log_webhook"
+              sequence="40"/>
+
+</odoo>

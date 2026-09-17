@@ -92,6 +92,17 @@ def _score(line, move, name_match: float) -> tuple[int, list[str]]:
         score += 15
         reasons.append("ref factura aparece en concepto")
 
+    # Fecha de vencimiento: los recibos domiciliados se cargan al vencimiento (senal fuerte)
+    due = getattr(move, "invoice_date_due", None)
+    if due:
+        ddiff = abs((line.date - due).days)
+        if ddiff <= 1:
+            score += 20
+            reasons.append("vencimiento coincide con el cargo")
+        elif ddiff <= 5:
+            score += 10
+            reasons.append("vencimiento cercano al cargo")
+
     # Date proximity (within 60 days)
     if move.invoice_date:
         diff = abs((line.date - move.invoice_date).days)
@@ -138,6 +149,12 @@ def _find_open_aml_matches(env, company_id, line_amount, line_date):
         bal = abs(round(aml.balance, 2))
         if abs(bal - abs_amt) > 1.0:
             continue
+        # direccion: salida bancaria solo casa deuda (haber); entrada solo derecho de cobro (debe)
+        sbal = round(aml.balance, 2)
+        if line_amount < 0 and sbal > 0:
+            continue
+        if line_amount > 0 and sbal < 0:
+            continue
         score = 50
         reasons = ["importe coincide en linea abierta"]
         if abs(bal - abs_amt) < 0.01:
@@ -160,6 +177,7 @@ def _find_open_aml_matches(env, company_id, line_amount, line_date):
             "partner": aml.partner_id.name or "",
             "ref": aml.move_id.ref or "",
             "amount_total": float(bal),
+            "date": str(aml.date or ""),
             "state": "posted",
             "account_code": aml.account_id.code,
             "url": f"/odoo/action-account.action_move_journal_line/{aml.move_id.id}",
@@ -246,6 +264,7 @@ def propose_for_company(env, company_id: int, max_lines: int = 200) -> list[dict
                     "partner": partner_name,
                     "ref": c.ref or "",
                     "amount_total": float(c.amount_total),
+                    "date": str(c.invoice_date or c.date or ""),
                     "state": c.state,
                     "url": f"/odoo/action-account.action_move_in_invoice_type/{c.id}",
                     "score": s,
@@ -266,6 +285,7 @@ def propose_for_company(env, company_id: int, max_lines: int = 200) -> list[dict
             proposals.append(rule_proposal)
         proposals.extend(open_line_matches[:3])
         proposals.extend(scored[:3])
+        proposals.sort(key=lambda p: -(p.get("score") or 0))
 
         out.append({
             "line_id": line.id,

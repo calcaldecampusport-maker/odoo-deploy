@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_round_cuota_catalogo_tree" model="ir.ui.view">
+        <field name="name">round.cuota.catalogo.tree</field>
+        <field name="model">round.cuota.catalogo</field>
+        <field name="arch" type="xml">
+            <tree string="Catálogo de cuotas">
+                <field name="codigo"/>
+                <field name="descripcion"/>
+                <field name="precio_mensual" widget="monetary"/>
+                <field name="precio_trimestral" widget="monetary"/>
+                <field name="precio_anual" widget="monetary"/>
+                <field name="matricula" widget="monetary"/>
+                <field name="actividades_descripcion"/>
+                <field name="n_suscripciones_activas"/>
+                <field name="activo" widget="boolean_toggle"/>
+                <field name="currency_id" invisible="1"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_round_cuota_catalogo_form" model="ir.ui.view">
+        <field name="name">round.cuota.catalogo.form</field>
+        <field name="model">round.cuota.catalogo</field>
+        <field name="arch" type="xml">
+            <form string="Cuota">
+                <sheet>
+                    <widget name="web_ribbon" title="Inactivo" bg_color="bg-danger"
+                            invisible="activo"/>
+                    <group>
+                        <group>
+                            <field name="codigo"/>
+                            <field name="descripcion"/>
+                            <field name="actividades_descripcion"/>
+                            <field name="product_id"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="activo"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="Precios por periodicidad">
+                        <group>
+                            <field name="precio_mensual"/>
+                            <field name="precio_trimestral"/>
+                        </group>
+                        <group>
+                            <field name="precio_semestral"/>
+                            <field name="precio_anual"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="matricula"/>
+                    </group>
+                    <notebook>
+                        <page string="Suscripciones">
+                            <field name="subscription_ids" readonly="1">
+                                <tree>
+                                    <field name="partner_id"/>
+                                    <field name="periodicidad"/>
+                                    <field name="forma_pago"/>
+                                    <field name="estado"/>
+                                    <field name="importe_efectivo" widget="monetary"/>
+                                    <field name="currency_id" invisible="1"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_round_cuota_catalogo_search" model="ir.ui.view">
+        <field name="name">round.cuota.catalogo.search</field>
+        <field name="model">round.cuota.catalogo</field>
+        <field name="arch" type="xml">
+            <search string="Buscar cuotas">
+                <field name="codigo"/>
+                <field name="descripcion"/>
+                <separator/>
+                <filter name="activos" string="Activos" domain="[('activo','=',True)]"/>
+                <filter name="inactivos" string="Inactivos" domain="[('activo','=',False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_round_cuota_catalogo" model="ir.actions.act_window">
+        <field name="name">Catálogo de cuotas</field>
+        <field name="res_model">round.cuota.catalogo</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_activos': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay cuotas en el catálogo</p>
+            <p>El catálogo de cuotas se sincroniza automáticamente desde NoofitPro vía MCP.<br/>
+               También puedes crearlas manualmente para pruebas.</p>
+        </field>
+    </record>
+
+</odoo>

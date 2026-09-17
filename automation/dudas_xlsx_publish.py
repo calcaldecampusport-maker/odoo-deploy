@@ -257,7 +257,7 @@ def publish(svc, payload: dict) -> dict:
         # Look back 3 days
         for offset in range(0, 4):
             d = _date.today() - _td(days=offset)
-            run_file = _Path(f"/tmp/extractor_runs/{d.isoformat()}.json")
+            run_file = _Path(f"/tmp/extractor_runs_cararjfam/{d.isoformat()}.json")
             if not run_file.exists():
                 continue
             run = _json.loads(run_file.read_text())
