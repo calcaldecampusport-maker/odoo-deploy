@@ -1,231 +1,165 @@
-# MAPA_EMPRESAS.md — Fuente de verdad: empresa ↔ Odoo ↔ pipeline ↔ web ↔ Drive
+# MAPA_EMPRESAS.md — empresa ↔ Odoo ↔ pipeline ↔ web ↔ Drive
 
-> **Para qué sirve este documento.** Cada empresa que contabilizamos vive
-> simultáneamente en **4 capas** que TIENEN que apuntar a lo mismo. Si una se
-> desalinea (p.ej. la web mira la BD equivocada, o un pipeline escribe en otra
-> company), los documentos "desaparecen", se contabilizan dos veces, o se
-> mezcla información entre empresas. Este es el único sitio donde se ve el
-> cruce completo de un vistazo. **Manténlo actualizado en el mismo turno en que
-> toques cualquiera de las 4 capas** (igual que RECOVERY.md).
+> **Para qué sirve.** Cada empresa que contabilizamos vive a la vez en varias capas que
+> TIENEN que apuntar a lo mismo. Si una se desalinea (la web mira la BD equivocada, un
+> pipeline escribe en otra company), los documentos "desaparecen", se contabilizan dos
+> veces, o se mezcla información entre empresas.
 >
-> Ubicaciones (mantener las 3 sincronizadas):
-> - Local: `C:/Users/pc/Documents/odoo-deploy/MAPA_EMPRESAS.md`
-> - VPS:   `/opt/automation/MAPA_EMPRESAS.md`
-> - GitHub: repo `odoo-deploy` (commit + push)
+> **Manténlo actualizado en el mismo turno en que toques cualquiera de las capas**, igual
+> que `RECOVERY.md`.
+>
+> Reescrito el **17/09/2026**. La versión anterior era del 12/06/2026 y llevaba tres meses
+> diciendo que la contabilidad de AUSTRAL estaba en `cararjfam_test` company 4, cuando
+> migró a Odoo 18 Enterprise en agosto (`RECOVERY.md §56`). Esa desactualización propagó
+> la regla equivocada "esta app es solo AUSTRAL company 4" al `CLAUDE.md` de otro repo,
+> donde sobrevivió meses apuntando a un registro con `activa = 0`.
 
 ---
 
-## Las 4 capas que SIEMPRE deben coincidir
+## La regla de oro
 
-Para una misma empresa (identificada por su **VAT**), estas cuatro cosas deben
-referirse exactamente a la misma BD Odoo + company_id:
+**Un `company_id` no significa nada por sí solo: solo junto a su base de datos.**
 
-1. **Odoo** — `res_company` (BD + `company_id`) donde vive su contabilidad real.
-2. **Pipeline / cron** — carpeta `/opt/automation*` con su `companies.py`
-   (`DB_NAME` + `odoo_company_id` + `vat`) y sus líneas en el crontab del
-   usuario `odoo`. Es quien CONTABILIZA los documentos.
-3. **Web** (`austral.carajfam.com`) — fila en `data/app.db` tabla `empresa`
-   (`odoo_db` + `odoo_company_id`) a la que se enganchan los usuarios. Es quien
-   LEE/MUESTRA los datos.
-4. **Drive** — carpeta `Cola_VPS` (queue_folder) donde se sueltan los PDFs de
-   esa empresa, que el pipeline procesa.
+La company 1 es Wiemspro SL, CARARJFAM2019 o Medical Cables según dónde mires. Cualquier
+instrucción que diga "company N" sin nombrar la BD es ambigua, y en contabilidad ambiguo
+es peligroso. Confirma siempre el par **(BD, company_id)**.
 
-Regla de oro: **VAT → (BD, company_id)** debe dar el MISMO resultado en las 4.
+## Tabla maestra
 
----
+| Empresa | VAT | BD Odoo | company | Odoo | Web | Pipeline |
+|---|---|---|---|---|---|---|
+| **Wiemspro SL** | ESB72305832 | `wiems_v18_prod` | 1 | 18 Ent. | contab.wiemspro.com | `automation_wiemspro` |
+| **Wiemspro CORP** | — | `wiems_v18_prod` | 3 | 18 Ent. | contab.wiemspro.com | `automation_wiemspro` |
+| **Bio Sensors Suit Group SL** | ESB56771520 | `wiems_v18_prod` | 9 | 18 Ent. | contab.wiemspro.com | `automation_wiemspro` |
+| **International Austral Sport SA** | ESA39100573 | `wiems_v18_prod` | 12 | 18 Ent. | pruebas-ca.medicalcables.eu | `automation_austral_e18` |
+| **Medical Cables SL** | ESB93092690 | `medical_v18` | 1 | 18 CE | contab.medicalcables.eu | `automation_medicalcables` |
+| **CARARJFAM2019, SL** | B93653392 | `cararjfam` | 1 | 17 | austral.carajfam.com | `automation_cf` + `automation` |
+| **Best Training Rincón de la Victoria SL** | B72349137 | `round_facturacion` | 3 | 17 | austral.carajfam.com | `automation_bt` + `automation_bt_round` |
 
-## Tabla maestra (estado a 2026-06-07)
+⚠️ **Trampa de nombres:** `austral.carajfam.com` **no es la web de Austral**, es la de
+CARARJFAM y Best Training. La de Austral es `pruebas-ca.medicalcables.eu`.
 
-| Empresa | VAT | BD Odoo | company_id | Pipeline (carpeta) | Cron (hora odoo) | Web `empresa.id` | Drive cola |
-|---|---|---|---|---|---|---|---|
-| **CARARJFAM2019, SL** | B93653392 | `cararjfam` | **1** | `/opt/automation` | 23:23–23:40 + `automation.service` :8080 | 2 | `1dIQ0IKGGk-3oJc9129pmA5IDepVzp71-` |
-| **INTERNATIONAL AUSTRAL SPORT, SA** | A39100573 ⚠️ | `cararjfam_test` | **4** | `/opt/automation_austral` | 02:00–03:10 | 1 | `15kI9YEpo-Z1OngKAud1X2ZPnQgH4jI85` |
-| **BEST TRAINING RINCÓN DE LA VICTORIA, SL** | B72349137 | `round_facturacion` | **3** | `/opt/automation_bt_round` | 00:23–00:40 | 3 | `13vIwkLLrZ8mTYn0tG_bp-tDshpOuepOE` |
+### Dónde vive cada Odoo
 
-⚠️ **AUSTRAL — discrepancia de VAT pendiente:** el `companies.py` del pipeline
-declara `vat='B44821965'` (y `EXPECTED_VATS`/`DEFAULT_VAT` igual), pero la
-company 4 real en Odoo tiene VAT **A39100573**. Funciona por *fallback* a
-`DEFAULT_VAT`, pero hay que cuadrarlo (decidir cuál es el correcto y alinear
-pipeline + Odoo). Anotado el 2026-06-07.
+| Instancia | Dónde | Acceso |
+|---|---|---|
+| `wiems_v18_prod` (18 Enterprise) | **Alojado, fuera del VPS** | Solo XML-RPC |
+| `medical_v18` (18 Community) | **Alojado, fuera del VPS** | Solo XML-RPC |
+| `cararjfam`, `round_facturacion` (17) | En el VPS `round-vps` | Postgres directo |
 
-### Usuarios web por empresa
+**El backup diario del VPS no incluye las dos primeras.** Si se pierde Austral, Wiemspro o
+Medical, se recuperan desde los backups de su Odoo alojado, no de aquí.
 
-| `empresa.id` | Empresa | Usuarios (`users.email`) | Rol |
-|---|---|---|---|
-| 1 | AUSTRAL | `rdpablo@austral.es`, `c.alcalde.campusport@gmail.com`, `c@x.com` | accountant / admin / admin |
-| 2 | CARARJFAM | `carloscararjfam@cararjfam.com` | accountant |
-| 3 | BEST TRAINING | `besttraining@cararjfam.com` | accountant |
+### Bajas y restos
 
----
-
-## Detalle por base de datos Odoo
-
-### `cararjfam` (PRODUCCIÓN del grupo CARAJFAM)
-- **company 1** — CARARJFAM2019,SL (B93653392) → la única que debe contabilizar
-  aquí el pipeline `/opt/automation`.
-- **company 2** — BEST TRAINING RINCÓN DE LA VICTORIA SL (B72349137) →
-  **⚠️ LEGACY / A LIMPIAR.** BT se migró a `round_facturacion/3`. No debe
-  recibir documentos nuevos. Quedan restos (statements + apuntes de bank) de
-  antes del split que hay que migrar/borrar (ver "Pendientes").
-
-### `cararjfam_test` (BD de AUSTRAL — pese al nombre "test")
-- **company 4** — INTERNATIONAL AUSTRAL SPORT SA (A39100573) → contabiliza el
-  pipeline `/opt/automation_austral`.
-- companies 1/2/3 son copias de test, **no se usan**.
-
-### `round_facturacion` (Odoo del SaaS Round / NoofitPro)
-- **company 3** — BEST TRAINING RINCÓN DE LA VICTORIA SL (B72349137) → la BUENA
-  para BT. Es la empresa del manager NoofitPro `roundgestion` (17677) y sus
-  trainers `roundmalagacentro` (17675) / `roundanoreta` (17674). Contabiliza el
-  pipeline `/opt/automation_bt_round`.
-- **company 1** — "BEST TRAINING (legacy USA) - NO USAR" → lista negra.
-- **company 2** — "ES Company (vacía) - NO USAR".
-- **companies 5–15** — `ZZZ_TESTn_DELETE_ME` / "Pruebas Noofit SL" → basura de pruebas.
+| Registro | Situación |
+|---|---|
+| `austral` en `cararjfam_test`/4 | **`activa = 0`** desde el 02/08/2026. Archivo de consulta: conserva el histórico hasta el 30/06/2026 y **no se escribe más en él** |
+| `SoloCarlos`, `wiems_v18_prod`/11 | Fue una prueba. Sin pipeline, sin usuarios, sin carpeta de cola. `activa = 0` desde el 17/09/2026 |
+| `cararjfam`/2 (BT legacy) | Restos anteriores al split. BT se migró a `round_facturacion`/3. No debe recibir documentos nuevos |
+| `round_facturacion`/1 y /2 | `BEST TRAINING (legacy USA) - NO USAR` y `ES Company (vacía) - NO USAR` |
+| `round_facturacion`/5 a /15 | `ZZZ_TEST*_DELETE_ME` y "Pruebas Noofit SL". Basura de pruebas |
 
 ---
 
-## Cómo arranca cada automatización
+## ⚠️ CARARJFAM y BT tienen DOS pipelines a la vez
 
-- **Server HTTP** (`automation.service`, gunicorn :8080, WorkingDir
-  `/opt/automation`): recibe los JSON que le postea el `poller.py` y contabiliza
-  en Odoo resolviendo la company por `target_company_vat`.
-- **Crons** (crontab del usuario `odoo`, NO de root):
-  - cararjfam: `extractor.py`, `poller.py`, reconciliadores, dudas… 23:23–23:40.
-  - austral: `extractor.py --company B44821965`, liquidación PS, dudas… 02:00–03:10.
-  - bt_round: `extractor.py`, `apply_rules_to_bank.py`, `bank_reconciler.py`,
-    `bank_multi_reconciler.py`, dudas, learning… 00:23–00:40.
-- Cada pipeline está **aislado**: su propio `companies.py`, sus carpetas Drive y
-  sus logs en `/var/log/automation*`. NUNCA comparten company entre sí.
+Esto es lo más delicado del sistema ahora mismo y conviene entenderlo antes de tocar nada.
 
----
+Desde el **09/09/2026** conviven dos generaciones de pipeline para las mismas empresas, y
+**cada una atiende una vía de entrada distinta**:
 
-## Checklist al DAR DE ALTA una empresa nueva (no saltarse ningún paso)
+| Vía de entrada | Quién la procesa | Cómo se dispara |
+|---|---|---|
+| **Subida por la web** | `automation_cf` / `automation_bt` (**nuevos**) | `cron_cola_vps.py` lee `empresa.pipeline_dir` y ejecuta `<pipeline_dir>/webproc.py` |
+| **Cola de Drive** | `automation` / `automation_bt_round` (**viejos**) | Crons propios del pipeline (37 y 22 líneas de crontab) |
 
-1. **Odoo**: crear/identificar la `res_company` en su BD. Apuntar BD + company_id + VAT.
-2. **Pipeline**: crear carpeta `/opt/automation_<slug>` con su `companies.py`
-   (`DB_NAME`, `odoo_company_id`, `vat`, `EXPECTED_VATS`, carpetas Drive) y añadir
-   sus líneas al crontab de `odoo`. Verificar que el `vat` del `companies.py`
-   == VAT real de la company Odoo.
-3. **Drive**: crear las carpetas (Cola_VPS, Procesados, Contabilizado, Revisión,
-   Rechazadas, Informes) y pegar sus IDs en `companies.py`.
-4. **Web**: insertar fila en `data/app.db` tabla `empresa` (`odoo_db`,
-   `odoo_company_id`, nombre, carpetas, logo) y crear el/los `users` con
-   `empresa_id` correcto.
-5. **Verificar coincidencia** con el bloque de queries de abajo.
-6. **Actualizar este documento** (tabla maestra + detalle) y RECOVERY.md.
+Los pipelines nuevos **no tienen crons propios**, pero **sí están en producción**: los
+invoca la web en cada subida. No son un port abandonado.
+
+**Qué NO hacer:** activar los crons de `automation_cf` o `automation_bt` sin desactivar
+antes los equivalentes de `automation` y `automation_bt_round`. Los mismos documentos se
+contabilizarían dos veces. El aviso está también en
+`automation_austral_e18/CRON_PENDIENTE.txt`.
+
+**Decisión tomada el 17/09/2026:** se retoma la migración a los pipelines nuevos. El paso
+pendiente es mover el flujo de Drive de los viejos a los nuevos, apagando los crons
+antiguos en la misma operación.
 
 ---
 
-## Queries de verificación (detectan desalineaciones)
+## Carpetas de cola en Drive
+
+Donde se sueltan los documentos que el pipeline recoge:
+
+| Empresa | `queue_folder` |
+|---|---|
+| CARARJFAM2019 | `1dIQ0IKGGk-3oJc9129pmA5IDepVzp71-` |
+| Best Training | `13vIwkLLrZ8mTYn0tG_bp-tDshpOuepOE` |
+| Medical Cables | `19SV1Sst6MgMGXJADOrSE2LVPOfFScolz` |
+| Wiemspro SL | `1aIHzVtNRuKdQ7h5gydd_oLkFn6m0Y4cf` |
+| Wiemspro CORP | `10EraOIKgXO2bDzswIPmyZa1ILjp9goX4` |
+| Bio Sensors | `1Qm4euWXUjAOlCTEjzJOC8_efvw2KFtBM` |
+| Austral | `15kI9YEpo-Z1OngKAud1X2ZPnQgH4jI85` |
+
+---
+
+## La fuente de verdad no es este documento
+
+Este fichero es un **resumen legible**. Los datos vivos están en:
+
+| Capa | Dónde mirarla |
+|---|---|
+| Empresa ↔ BD ↔ company ↔ pipeline ↔ Drive | Tabla `empresa` del `app.db` de cada web (`/opt/<web>/backend/data/app.db`) |
+| Lo que contabiliza cada pipeline | `companies.py` de su carpeta |
+| Qué se ejecuta y cuándo | `crontab -u odoo -l` |
+| Historia y decisiones | `RECOVERY.md` |
+
+Si este documento y la tabla `empresa` se contradicen, **manda la tabla** — y corrige esto.
+
+### Comprobación rápida
 
 ```bash
-# 1) Qué empresa/BD apunta cada usuario web
-ssh round-vps "cd /opt/austral-contab-web/backend && sudo -u odoo /opt/odoo17/venv/bin/python -c \"
-import sqlite3; c=sqlite3.connect('data/app.db'); c.row_factory=sqlite3.Row
-for r in c.execute('SELECT e.id,e.nombre,e.odoo_db,e.odoo_company_id FROM empresa e'): print(dict(r))\""
+# 1) que dice cada web
+ssh round-vps 'for w in wiemspro-contab medicalcables-contab carajfam-contab austral-contab; do
+  echo "-- $w"; sqlite3 -header -column /opt/$w/backend/data/app.db \
+  "SELECT clave,odoo_db,odoo_company_id,vat,activa,pipeline_dir FROM empresa;"; done'
 
-# 2) VAT real de cada company en cada BD (debe coincidir con companies.py de su pipeline)
-for DB in cararjfam cararjfam_test round_facturacion; do
-  ssh round-vps "sudo -u postgres psql $DB -c \"SELECT c.id,c.name,p.vat FROM res_company c JOIN res_partner p ON p.id=c.partner_id ORDER BY c.id;\""
-done
+# 2) que dice cada pipeline
+ssh round-vps 'for d in /opt/automation*/; do echo "-- $d";
+  grep -hE "DB_NAME|odoo_company_id|vat" $d/companies.py 2>/dev/null | head -4; done'
 
-# 3) VAT declarado por cada pipeline
-ssh round-vps "for d in /opt/automation /opt/automation_austral /opt/automation_bt_round; do
-  echo \$d; grep -E 'DB_NAME|EXPECTED_VATS|odoo_company_id' \$d/companies.py; done"
-
-# 4) Documentos contabilizados en los últimos días por BD/company (¿van donde deben?)
-ssh round-vps "sudo -u postgres psql round_facturacion -c \"SELECT company_id,create_date::date,count(*) FROM account_move WHERE create_date>=now()-interval '3 days' GROUP BY 1,2 ORDER BY 1,2;\""
+# 3) las companies reales de las BD que estan en el VPS
+ssh round-vps 'for DB in cararjfam round_facturacion cararjfam_test; do echo "-- $DB";
+  sudo -u postgres psql -d $DB -Atc "SELECT id||chr(124)||name FROM res_company ORDER BY id;"; done'
 ```
 
-Si la query (2) y la (3) NO coinciden para una empresa, o la (1) apunta a una
-BD/company distinta de la de su pipeline → hay desalineación, corregir antes de
-seguir.
+Si (1) y (2) no coinciden para una empresa, hay desalineación: corrígela antes de seguir.
 
 ---
 
-## Pendientes / anomalías conocidas (2026-06-07)
+## Al dar de alta una empresa nueva
 
-1. **BT — extracto bancario iba a la BD equivocada — CAUSA RAÍZ ARREGLADA.**
-   `/opt/automation_bt_round/extractor.py` tenía
-   `BANK_IMPORTER = "/opt/automation/bank_importer.py"` (el de **cararjfam**,
-   `DB_NAME=cararjfam`) → los extractos de BT se importaban en `cararjfam/2` en
-   vez de `round_facturacion/3`. El "imported" del log era falso: el guard de
-   idempotencia veía el statement ya metido en cararjfam/2 y devolvía OK.
-   - ✅ Corregido a `"/opt/automation_bt_round/bank_importer.py"` (`round_facturacion`).
-   - ✅ El log de éxito ahora imprime el resultado real del importador (BD/statement/duplicado).
-   - ✅ Colisión de IBAN resuelta: el IBAN `ES98…7577` estaba en company 1
-     (legacy "NO USAR", journal 15) **y** company 3 (journal 21). Quitado de la
-     legacy → routing inequívoco a company 3. (`account.journal._order` no es por
-     id, así que la colisión era impredecible.)
-   - ⏳ PENDIENTE: el usuario deja el fichero Santander REAL de BT en su carpeta
-     Drive (queue) → el cron de las 00:30 lo importará en `round_facturacion/3`.
-     Backup `extractor.py.bak_bankfix` en el VPS.
-2. **`cararjfam/2` (BT legacy) — limpiar MAÑANA** (tras confirmar el banco en
-   round_facturacion/3). Las 102 facturas ya están replicadas en
-   round_facturacion/3 (verificado: las 102 refs ⊆ las 110 de round/3). Quedan
-   por borrar: statements Santander #3 (ene–abr) y #4 (mar–jun) + sus 542
-   apuntes + 6 varios. Objetivo: cararjfam/2 vacía/archivada, nunca más BT ahí.
-3. ✅ (resuelto 2026-06-12) **AUSTRAL — VAT alineado a `A39100573`** (el real de la
-   company 4 en Odoo). `companies.py` (vat/DEFAULT_VAT, con `B44821965` como alias
-   en EXPECTED_VATS) + cron `extractor.py --company A39100573`. El desajuste hacía
-   que el reproceso web fallara con "no company config" (la web pasa el VAT de Odoo).
-4. (2026-06-12) Austral: añadido cron `dudas_apply.py` 03:03 (faltaba: las
-   respuestas del xlsx nunca se aplicaban). Inferencia IRPF (FAC13) en
-   `extractor._validate` + `process_invoice` — facturas con retención 19/15/7%
-   ya no caen a rechazadas por math mismatch. Paridad de botones rechazados
-   web/Drive en austral-contab-web (reprocesar+comentario+eliminar para uploads web).
+1. **Odoo** — identificar la `res_company`. Apuntar BD + company_id + VAT.
+2. **Pipeline** — carpeta `/opt/automation_<slug>` con su `companies.py` (`DB_NAME`,
+   `odoo_company_id`, `vat`, carpetas de Drive). ⚠️ Al clonar de otro pipeline hay que
+   cambiar **todas** sus constantes de script, y también los `DAY_FILE_IDS` y el
+   `FILESTORE` del `backup_to_drive.py`: en junio de 2026 una copia se llevó los file_ids
+   de CARARJFAM y habría machacado sus backups.
+3. **Drive** — crear las carpetas (cola, contabilizado, revisión, rechazadas, informes) y
+   poner sus ids en `companies.py` y en la tabla `empresa`.
+4. **Web** — fila en `empresa` (`odoo_db`, `odoo_company_id`, `vat`, carpetas,
+   `pipeline_dir`, `activa`) y sus usuarios.
+5. **Verificar** con las tres consultas de arriba.
+6. **Actualizar este documento y `RECOVERY.md`.**
 
-### ⚠️ Lección / regla derivada (ampliada jun 2026)
-Cada pipeline DEBE usar **sus propios** scripts (importadores + procesadores),
-nunca los de otro pipeline — el `DB_NAME` (y la company) está **hardcodeado en
-cada script**. Si un `extractor.py` apunta a un script de otro pipeline, los
-documentos se contabilizan en la BD/empresa equivocada, o fallan con
-"missing accounts in company N" (esa company no existe en esa BD).
+## La regla que más caro ha salido
 
-**Incidente bt_round (jun 2026):** su `extractor.py` apuntaba a varios scripts de
-`/opt/automation` (cararjfam, `DB_NAME=cararjfam`). Síntomas: nóminas y facturas
-de BT fallaban con `missing accounts in company 3` (no existe en cararjfam) y los
-extractos bancarios se colaban en `cararjfam/2`. **Las 5 constantes a revisar en
-`extractor.py`:** `BANK_IMPORTER`, `SEPA_IMPORTER`, `PROCESS_SCRIPT`,
-`NOMINA_SCRIPT`, `TAX_PAYMENT_SCRIPT`. Todas corregidas a
-`/opt/automation_bt_round/…`. `sepa_xml_importer.py` no existe en ningún pipeline
-(SEPA-XML no implementado; las remesas SEPA entran por el backend de Round).
-Backups VPS: `extractor.py.bak_bankfix`, `.bak_procfix`, `.bak_procfix2`.
+**Cada pipeline usa SUS propios scripts, nunca los de otro.** El `DB_NAME` está
+hardcodeado en cada fichero. En junio de 2026 el `extractor.py` de `bt_round` apuntaba a
+scripts de `/opt/automation` (CARARJFAM): los extractos bancarios de Best Training se
+importaron en la empresa equivocada, y el log decía "imported" igualmente porque el guard
+de idempotencia los veía ya metidos.
 
-### Auditoría 2026-06-10 (código + crons + reglas) — resultados
-- ✅ Cero referencias cruzadas entre pipelines (todas las constantes de script OK).
-- ✅ `DB_NAME` coherente en los ~20 scripts de cada pipeline.
-- ✅ Guards de aislamiento (`PIPELINE_MISMATCH`) en 26-28/30 scripts (faltan solo
-  en `companies.py`/`drive_ops.py`, que no tocan BD — correcto).
-- 🔴 **Arreglado**: `bt_round/bank_importer.py` NO tenía el guard de idempotencia
-  BNK11 (copia anterior al fix) → portado (backup `.bak_idem`).
-- 🔴 **Arreglado**: las copias de `build_rules_xlsx.py` en austral/bt_round estaban
-  desfasadas (sin BNK11/FAC16) y TODAS escriben al MISMO file_id de Drive →
-  ejecutar una copia vieja pisaba el xlsx canónico. Sincronizadas las 3 (md5
-  idéntico). REGLA: editar reglas SOLO en `/opt/automation/build_rules_xlsx.py`
-  y resincronizar copias (`cp` a los otros dos) en el mismo turno.
-- ✅ (resuelto 2026-06-11) Backups offsite Drive para las 3 empresas: crons 04:00
-  (cararjfam), 04:20 (bt_round) y 04:40 (austral), cada uno con sus propios
-  `DAY_FILE_IDS` en Drive (ver RECOVERY §27). ⚠️ la copia inicial de
-  `backup_to_drive.py` en bt_round traía los file_ids de CARARJFAM y habría
-  machacado sus backups — al clonar pipeline cambiar SIEMPRE `DAY_FILE_IDS`,
-  `FILESTORE` y `AUTOMATION_DIR`. Prueba real OK: BT 144MB / AUSTRAL 204MB.
-- ✅ (resuelto 2026-06-11) `detect_duplicate_partners` en cron de bt_round (06:30).
-  `periodic_expenses_check` sigue solo en cararjfam (sus gastos periódicos).
-- 🟡 Crons de bt_round/austral usan el venv de `/opt/automation/venv` para varios
-  jobs (funciona; fragilidad si ese venv cambia).
-- ℹ️ `ir.mail_server` solo configurado en BD cararjfam (decisión del usuario);
-  round_facturacion y cararjfam_test sin servidor SMTP en Odoo.
-
-**Verificación rápida** — ninguna ruta debe apuntar a `/opt/automation/` desde
-otro pipeline, y cada script destino debe tener su `DB_NAME` correcto:
-```
-grep -noE '/opt/automation[a-z_]*/[a-zA-Z_]+\.py' /opt/automation_<X>/extractor.py | sort -u
-for f in process_invoice nomina_processor tax_payment_processor bank_importer; do
-  grep -m1 '^DB_NAME' /opt/automation_<X>/$f.py; done
-```
-
----
-
-_Última actualización: 2026-06-07 — creado tras detectar que el usuario web de
-Best Training apuntaba a la BD equivocada (round_facturacion ↔ cararjfam)._
+Las 5 constantes a revisar: `BANK_IMPORTER`, `SEPA_IMPORTER`, `PROCESS_SCRIPT`,
+`NOMINA_SCRIPT`, `TAX_PAYMENT_SCRIPT`.

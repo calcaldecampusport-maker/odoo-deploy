@@ -28,14 +28,30 @@ propósito: tienen su propio `companies.py`, sus carpetas de Drive y sus logs.
 | `automation` | `cararjfam` | 1 | Generación antigua, **en producción** (crons 23:23–23:40) |
 | `automation_austral` | `cararjfam_test` | 4 | Generación antigua, **crons desactivados** salvo el backup |
 | `automation_bt_round` | `round_facturacion` | 3 | Generación antigua, **en producción** (crons 00:23–00:40) |
-| `automation_austral_e18` | `wiems_v18_prod` | 12 | **Nueva** (09/09/2026), en producción parcial: solo el cron de PrestaShop L-V 02:00 |
-| `automation_bt` | `round_facturacion` | 3 | **Nueva** (09/09/2026), sin cron ni logs — **port a medias** |
-| `automation_cf` | `cararjfam` | 1 | **Nueva** (09/09/2026), sin cron ni logs — **port a medias** |
+| `automation_austral_e18` | `wiems_v18_prod` | 12 | **Nueva** (09/09/2026), en producción: cron de PrestaShop L-V 02:00 + subidas web |
+| `automation_bt` | `round_facturacion` | 3 | **Nueva** (09/09/2026), en producción **para las subidas web** |
+| `automation_cf` | `cararjfam` | 1 | **Nueva** (09/09/2026), en producción **para las subidas web** |
 
 Los tres nuevos son el port de la arquitectura de `automation/wiemspro` (con
 `poller_tarjetas`, `process_asiento`, `expense_router`, `webproc`, `orderproc`,
-`deliveryproc`) a cada empresa. **Sustituirán** a los tres antiguos, pero el cambio está
-sin terminar.
+`deliveryproc`) a cada empresa.
+
+### ⚠️ CARARJFAM y BT corren DOS pipelines a la vez
+
+No es que los nuevos estén sin usar: **cada generación atiende una vía de entrada
+distinta**, y conviene saberlo antes de tocar nada.
+
+| Vía de entrada | Quién la procesa | Cómo se dispara |
+|---|---|---|
+| Subida por la web | `automation_cf` / `automation_bt` (**nuevos**) | `cron_cola_vps.py` lee `empresa.pipeline_dir` y ejecuta `<pipeline_dir>/webproc.py` |
+| Cola de Drive | `automation` / `automation_bt_round` (**viejos**) | Crons propios (37 y 22 líneas de crontab) |
+
+Los nuevos no tienen crons propios, pero la web los invoca en cada subida. La tabla
+`empresa` de `carajfam-contab` ya apunta a ellos.
+
+**Decisión del 17/09/2026: se retoma la migración.** El paso pendiente es pasar también el
+flujo de Drive a los pipelines nuevos, **apagando los crons antiguos en la misma
+operación** — si no, los mismos documentos se contabilizarían dos veces.
 
 📌 `automation_austral_e18/CRON_PENDIENTE.txt` documenta los crons preparados y **no
 activados**, y avisa de lo importante: activarlos sin desactivar antes los del pipeline
