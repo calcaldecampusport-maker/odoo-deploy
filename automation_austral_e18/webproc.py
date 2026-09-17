@@ -116,10 +116,16 @@ def main():
         return
 
     err = extractor.validate(data)
+    if err:
+        # se sale ANTES de tocar `data`: cuando el OCR devuelve una LISTA (varias facturas
+        # en un mismo PDF), el `data.get` de abajo reventaba y el revisor veía el traceback
+        # en vez del motivo que `validate` ya había preparado.
+        out({"status": "failed", "reason": err})
+        return
     dt = (data.get("document_type") or "").lower()
-    if err or dt in ("", "not_a_document"):
+    if dt in ("", "not_a_document"):
         out({"status": "failed", "classification": dt or None,
-             "reason": err or data.get("error") or "no es un documento contabilizable"})
+             "reason": data.get("error") or "no es un documento contabilizable"})
         return
 
     # NÓMINAS y pagos AEAT/TGSS (portados de Austral, siempre BORRADOR)
