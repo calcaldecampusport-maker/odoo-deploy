@@ -206,8 +206,17 @@ def extract(file_path: Path, company: dict, hint: str = None, rules: list = None
     return _parse_first_json(_strip_code_fences(result.stdout.strip()))
 
 
-def validate(data: dict) -> str | None:
+def validate(data) -> str | None:
     """None si el payload es válido; si no, string con el motivo."""
+    # VARIAS FACTURAS EN UN MISMO PDF: el OCR devuelve una LISTA de documentos. Antes
+    # reventaba aquí con «'list' object has no attribute 'get'» y el revisor solo veía el
+    # traceback en «Rechazados», sin entender qué hacer (caso «Facturas 4967- 4968.pdf»,
+    # dos facturas del mismo proveedor en un PDF, 4 intentos fallidos en sept. 2026).
+    if isinstance(data, list):
+        return ('el PDF trae %d facturas en uno solo: sepáralas y súbelas una a una'
+                % len(data))
+    if not isinstance(data, dict):
+        return 'el OCR devolvió algo que no se entiende (%s)' % type(data).__name__
     if "error" in data:
         return data["error"]
     dt = (data.get("document_type") or "").lower()
