@@ -166,21 +166,35 @@ habría tomado el relevo sirviendo una web retirada con `cararjfam` y `bt` activ
 
 ---
 
-## Lo que el código no puede responder
+## Las decisiones que necesitaban una persona
 
-Preguntas que quedan abiertas y necesitan una decisión humana:
+Seis preguntas que el código no podía responder, resueltas el mismo 17/09/2026:
 
-1. **`MAPA_EMPRESAS.md`**: ¿se reescribe con el mapa correcto o se retira en favor de
-   `RECOVERY.md`? Hoy es engañoso.
-2. **`SoloCarlos`**: ¿se pone `activa = 0`? Es un cambio en la BD de producción.
-3. **`automation_bt` y `automation_cf`**: el port quedó a medias el 09/09. ¿Se retoma o se
-   descarta? Si se retoma, `CRON_PENDIENTE.txt` avisa de que activar sus crons sin
-   desactivar los viejos contabilizaría todo dos veces.
-4. **Los 5 ficheros obsoletos** del `backend/app` de `medicalcables-contab`: ya no corren,
-   ¿se refrescan con los de producción?
-5. **`webround-seguridad`** y **`wellhub_integration`**: ambos vacíos. ¿Se eliminan?
-6. **Los 5 documentos heredados** de cada repo de contabilidad: ¿reescribir, borrar o
-   dejar señalados?
+| Pregunta | Decisión | Estado |
+|---|---|---|
+| `MAPA_EMPRESAS.md`, ¿reescribir o retirar? | Reescribir | ✅ Hecho, con las 7 empresas verificadas |
+| `SoloCarlos`, ¿`activa = 0`? | Sí | ✅ Hecho, 0 usuarios afectados, copia previa en `/root` |
+| `automation_bt` y `automation_cf`, ¿se retoman? | Sí | 📌 Decisión anotada; la migración queda pendiente de ejecutar |
+| Los 5 ficheros obsoletos de Medical, ¿refrescar? | **No**: conservarlos por si aparece algo que solo estaba en ellos | ✅ Documentados uno a uno |
+| `webround-seguridad` y `wellhub_integration`, ¿borrar? | Sí | ✅ Addon retirado · ⏳ el repo necesita permiso `delete_repo` |
+| Los 5 documentos heredados, ¿qué hacer? | Borrar 4, reescribir el README | ✅ Hecho en los 3 repos afectados |
+
+### Sobre los pipelines nuevos — corrección
+
+Durante la auditoría di por sentado que `automation_bt` y `automation_cf` eran un port
+abandonado, porque no tienen crons ni logs. **Era falso.** `cron_cola_vps.py` lee
+`empresa.pipeline_dir` y ejecuta `<pipeline_dir>/webproc.py`: las subidas por la web las
+procesan **ya** los pipelines nuevos, mientras la cola de Drive sigue en los viejos.
+CARARJFAM y BT corren las dos generaciones a la vez, cada una para una vía de entrada.
+
+El paso pendiente de la migración es mover también el flujo de Drive, **apagando los crons
+antiguos en la misma operación**.
+
+### Lo único que queda abierto
+
+- **Borrar el repo `webround-seguridad`** (público y vacío). Necesita ampliar el token:
+  `gh auth refresh -h github.com -s delete_repo`, o hacerlo desde la web de GitHub.
+- **Ejecutar la migración** de la cola de Drive a `automation_cf` y `automation_bt`.
 
 ---
 
