@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chats de Claude — Servidor Carajfam</title>
+<style>
+  :root {
+    --fondo: #ffffff;
+    --fondo-alt: #f4f5f7;
+    --texto: #1a1c1f;
+    --texto-suave: #5b6169;
+    --borde: #dfe2e6;
+    --acento: #b8562f;
+    --acento-suave: #f6ece7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --fondo: #16181b;
+      --fondo-alt: #1e2125;
+      --texto: #e8eaed;
+      --texto-suave: #9aa1a9;
+      --borde: #2e3237;
+      --acento: #e08561;
+      --acento-suave: #2a201c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fondo: #16181b;
+    --fondo-alt: #1e2125;
+    --texto: #e8eaed;
+    --texto-suave: #9aa1a9;
+    --borde: #2e3237;
+    --acento: #e08561;
+    --acento-suave: #2a201c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--texto);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--fondo);
+    border-bottom: 1px solid var(--borde);
+    padding: 20px 16px 14px;
+  }
+  .contenedor { max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: -0.01em; }
+  .meta { color: var(--texto-suave); font-size: 13px; margin-bottom: 14px; }
+  .controles { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type="search"], select {
+    font: inherit; padding: 9px 12px;
+    border: 1px solid var(--borde); border-radius: 7px;
+    background: var(--fondo-alt); color: var(--texto);
+  }
+  input[type="search"] { flex: 1 1 300px; min-width: 0; }
+  select { flex: 0 1 260px; max-width: 100%; }
+  #recuento { color: var(--texto-suave); font-size: 13px; padding: 12px 16px 0; }
+  main { padding: 0 16px 40px; }
+  .sesion {
+    border: 1px solid var(--borde); border-radius: 9px;
+    padding: 13px 15px; margin-top: 10px; background: var(--fondo-alt);
+  }
+  .cabecera-sesion {
+    display: flex; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; align-items: baseline;
+  }
+  .proyecto {
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 12.5px; color: var(--acento);
+    background: var(--acento-suave);
+    padding: 2px 7px; border-radius: 5px;
+    word-break: break-all;
+  }
+  .fecha { color: var(--texto-suave); font-size: 12.5px; white-space: nowrap; }
+  .resumen { margin: 9px 0 8px; }
+  .pie {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-size: 12px; color: var(--texto-suave);
+    align-items: center;
+  }
+  .ruta {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 11.5px; word-break: break-all; flex: 1 1 100%;
+  }
+  button.copiar {
+    font: inherit; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--borde); border-radius: 6px;
+    background: var(--fondo); color: var(--texto);
+    padding: 4px 10px;
+  }
+  button.copiar:hover { border-color: var(--acento); color: var(--acento); }
+  #mas {
+    display: block; margin: 22px auto 0; padding: 10px 22px;
+    font: inherit; cursor: pointer;
+    border: 1px solid var(--borde); border-radius: 8px;
+    background: var(--fondo-alt); color: var(--texto);
+  }
+  .vacio { text-align: center; color: var(--texto-suave); padding: 50px 0; }
+  @media (max-width: 600px) { .fecha { white-space: normal; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="contenedor">
+    <h1>Chats de Claude — Servidor Carajfam</h1>
+    <div class="meta">
+      __TOTAL__ sesiones · __PROYECTOS__ proyectos · __GB__ GB · respaldo generado el __GENERADO__
+    </div>
+    <div class="controles">
+      <input type="search" id="buscar" placeholder="Buscar en los mensajes y en las rutas…" autocomplete="off">
+      <select id="filtro-proyecto"><option value="">Todos los proyectos</option></select>
+    </div>
+  </div>
+</header>
+
+<div class="contenedor"><div id="recuento"></div></div>
+<main class="contenedor"><div id="lista"></div><button id="mas" hidden>Ver más</button></main>
+
+<script id="datos" type="application/json">__DATOS__</script>
+<script>
+(function () {
+  var sesiones = JSON.parse(document.getElementById('datos').textContent);
+  var lista = document.getElementById('lista');
+  var recuento = document.getElementById('recuento');
+  var buscar = document.getElementById('buscar');
+  var filtro = document.getElementById('filtro-proyecto');
+  var botonMas = document.getElementById('mas');
+  var LOTE = 40;
+  var mostradas = 0;
+  var filtradas = sesiones;
+
+  var proyectos = {};
+  sesiones.forEach(function (s) { proyectos[s.proyecto] = (proyectos[s.proyecto] || 0) + 1; });
+  Object.keys(proyectos).sort().forEach(function (p) {
+    var o = document.createElement('option');
+    o.value = p;
+    o.textContent = p + ' (' + proyectos[p] + ')';
+    filtro.appendChild(o);
+  });
+
+  function fecha(t) {
+    var d = new Date(t);
+    if (isNaN(d)) return t;
+    return d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  function tam(b) {
+    if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
+    return Math.round(b / 1024) + ' KB';
+  }
+  function esc(t) {
+    return String(t).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function pinta(reinicia) {
+    if (reinicia) { lista.innerHTML = ''; mostradas = 0; }
+    var trozo = filtradas.slice(mostradas, mostradas + LOTE);
+    var html = trozo.map(function (s) {
+      return '<article class="sesion">' +
+        '<div class="cabecera-sesion"><span class="proyecto">' + esc(s.proyecto) + '</span>' +
+        '<span class="fecha">' + esc(fecha(s.fecha)) + '</span></div>' +
+        '<p class="resumen">' + esc(s.resumen) + '</p>' +
+        '<div class="pie"><span>' + s.mensajes + ' mensajes</span><span>' + tam(s.bytes) + '</span>' +
+        '<button class="copiar" data-ruta="' + esc(s.archivo) + '">Copiar ruta</button>' +
+        '<span class="ruta">' + esc(s.archivo) + '</span></div></article>';
+    }).join('');
+    lista.insertAdjacentHTML('beforeend', html);
+    mostradas += trozo.length;
+    botonMas.hidden = mostradas >= filtradas.length;
+    recuento.textContent = filtradas.length
+      ? 'Mostrando ' + mostradas + ' de ' + filtradas.length + ' sesiones'
+      : '';
+    if (!filtradas.length) lista.innerHTML = '<p class="vacio">Ninguna sesión coincide con la búsqueda.</p>';
+  }
+
+  function aplica() {
+    var q = buscar.value.trim().toLowerCase();
+    var p = filtro.value;
+    filtradas = sesiones.filter(function (s) {
+      if (p && s.proyecto !== p) return false;
+      if (!q) return true;
+      return (s.resumen + ' ' + s.proyecto + ' ' + s.archivo).toLowerCase().indexOf(q) !== -1;
+    });
+    pinta(true);
+  }
+
+  var temporizador;
+  buscar.addEventListener('input', function () {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(aplica, 160);
+  });
+  filtro.addEventListener('change', aplica);
+  botonMas.addEventListener('click', function () { pinta(false); });
+  lista.addEventListener('click', function (e) {
+    var b = e.target.closest('button.copiar');
+    if (!b) return;
+    navigator.clipboard.writeText(b.dataset.ruta).then(function () {
+      var t = b.textContent; b.textContent = 'Copiada';
+      setTimeout(function () { b.textContent = t; }, 1200);
+    });
+  });
+
+  pinta(true);
+})();
+</script>
+</body>
+</html>
